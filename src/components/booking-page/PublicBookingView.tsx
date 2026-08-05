@@ -93,17 +93,28 @@ export function PublicBookingView({
     [selectedDate, page.bookingTimezone],
   );
 
+  const initialDateRef = useRef(initialDate);
+  const userChangedDateRef = useRef(false);
+  const slotsFetchSeqRef = useRef(0);
+
   const loadSlotsForDate = useCallback(
-    (dateKey: string) => {
+    (dateKey: string, signal?: AbortSignal) => {
+      const requestId = ++slotsFetchSeqRef.current;
+
       startLoadingSlots(async () => {
         try {
           const response = await fetch(
             `/api/public/book/${page.slug}?date=${encodeURIComponent(dateKey)}`,
+            { signal },
           );
           const result = (await response.json()) as {
             success: boolean;
             resourceSlots?: ResourceSlotGroup[];
           };
+
+          if (requestId !== slotsFetchSeqRef.current) {
+            return;
+          }
 
           if (!response.ok || !result.success) {
             toast.error(ORZUX_CALENDAR_MESSAGES.publicBookFailed);
@@ -114,7 +125,15 @@ export function PublicBookingView({
           setSelectedSlot(null);
           setSlotResourceError(null);
           setSlotTimeError(null);
-        } catch {
+        } catch (error: unknown) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+
+          if (requestId !== slotsFetchSeqRef.current) {
+            return;
+          }
+
           toast.error(ORZUX_CALENDAR_MESSAGES.publicBookFailed);
         }
       });
@@ -122,18 +141,21 @@ export function PublicBookingView({
     [page.slug],
   );
 
-  const skipInitialSlotFetch = useRef(true);
-
   useEffect(() => {
-    if (skipInitialSlotFetch.current && selectedDate === initialDate) {
-      skipInitialSlotFetch.current = false;
+    if (!userChangedDateRef.current && selectedDate === initialDateRef.current) {
       return;
     }
 
-    loadSlotsForDate(selectedDate);
-  }, [selectedDate, initialDate, loadSlotsForDate]);
+    const controller = new AbortController();
+    loadSlotsForDate(selectedDate, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [selectedDate, loadSlotsForDate]);
 
   function handleDateSelect(dateKey: string) {
+    userChangedDateRef.current = true;
     setSelectedDate(dateKey);
     setSlotResourceError(null);
     setSlotTimeError(null);

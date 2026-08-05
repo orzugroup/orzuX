@@ -5,6 +5,7 @@ import {
   findNearestAvailableSlot,
   formatDateKeyInTimezone,
   formatSlotForDisplay,
+  getMaxBookableDateKey,
   getTimezoneDayBounds,
   isIntervalFree,
   isWithinOperatingHours,
@@ -366,16 +367,16 @@ export async function getPublicBookingPageSlots(
 
   const resources = await listPublicBookingPageResources(page.id);
   const todayKey = formatDateKeyInTimezone(new Date(), page.bookingTimezone);
-  const maxBookableKey = formatDateKeyInTimezone(
-    (() => {
-      const maxDate = new Date();
-      maxDate.setDate(maxDate.getDate() + page.advanceBookingDays);
-      return maxDate;
-    })(),
+  const maxBookableKey = getMaxBookableDateKey(
     page.bookingTimezone,
+    page.advanceBookingDays,
   );
 
   let date = options?.date ?? todayKey;
+
+  if (options?.date && !/^\d{4}-\d{2}-\d{2}$/.test(options.date)) {
+    date = todayKey;
+  }
 
   if (date < todayKey) {
     date = todayKey;

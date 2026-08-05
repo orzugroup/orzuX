@@ -36,6 +36,7 @@ export async function GET(request: Request, context: RouteContext) {
     },
     formFields: data.page.formFields,
     resources: data.resources.map((resource) => ({
+      id: resource.id,
       name: resource.name,
       resourceType: resource.resourceType,
       durationMinutes: resource.durationMinutes,

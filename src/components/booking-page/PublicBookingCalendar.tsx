@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ORZUX_CALENDAR_MESSAGES } from "@/features/google-calendar/orzux-calendar-messages";
 import {
+  addDaysToDateKey,
   formatDateKeyInTimezone,
+  getMaxBookableDateKey,
   getTimezoneDayBounds,
 } from "@/lib/calendar/slot-engine";
 import type { WeeklySchedule } from "@/lib/calendar/weekly-schedule";
@@ -38,21 +40,6 @@ function getZonedDayOfWeek(instant: Date, timeZone: string): number {
   return map[weekday] ?? 0;
 }
 
-function addDaysToDateKey(dateKey: string, days: number, timeZone: string): string {
-  let current = dateKey;
-  const step = days >= 0 ? 1 : -1;
-
-  for (let index = 0; index < Math.abs(days); index += 1) {
-    const bounds = getTimezoneDayBounds(current, timeZone);
-    const nextInstant = new Date(
-      (step > 0 ? bounds.end.getTime() : bounds.start.getTime()) + step,
-    );
-    current = formatDateKeyInTimezone(nextInstant, timeZone);
-  }
-
-  return current;
-}
-
 function monthStartFromDateKey(dateKey: string): string {
   return `${dateKey.slice(0, 7)}-01`;
 }
@@ -81,11 +68,6 @@ function buildMonthGrid(monthStartKey: string, timeZone: string): string[] {
   }
 
   return cells;
-}
-
-function getMaxBookableDateKey(timeZone: string, advanceBookingDays: number): string {
-  const todayKey = formatDateKeyInTimezone(new Date(), timeZone);
-  return addDaysToDateKey(todayKey, advanceBookingDays, timeZone);
 }
 
 function isDateBookable(

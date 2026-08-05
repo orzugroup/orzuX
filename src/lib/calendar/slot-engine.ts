@@ -391,3 +391,24 @@ export function formatDateKeyInTimezone(date: Date, timeZone: string): string {
 
   return formatter.format(date);
 }
+
+/** Advance a YYYY-MM-DD key by calendar days in `timeZone` (matches public booking UI). */
+export function addDaysToDateKey(dateKey: string, days: number, timeZone: string): string {
+  let current = dateKey;
+  const step = days >= 0 ? 1 : -1;
+
+  for (let index = 0; index < Math.abs(days); index += 1) {
+    const bounds = getTimezoneDayBounds(current, timeZone);
+    const nextInstant = new Date(
+      (step > 0 ? bounds.end.getTime() : bounds.start.getTime()) + step,
+    );
+    current = formatDateKeyInTimezone(nextInstant, timeZone);
+  }
+
+  return current;
+}
+
+export function getMaxBookableDateKey(timeZone: string, advanceBookingDays: number): string {
+  const todayKey = formatDateKeyInTimezone(new Date(), timeZone);
+  return addDaysToDateKey(todayKey, advanceBookingDays, timeZone);
+}
