@@ -1,6 +1,7 @@
 import "server-only";
 
 import { formatOrchestratorToolCatalog } from "@/lib/ai/tools";
+import { normalizeOrchestratorPayload } from "@/lib/ai/normalize-orchestrator-response";
 import { estimateTokensFromText } from "@/lib/ai/cost";
 import type { AiProvider } from "@/lib/ai/constants";
 import { WORKER_ORCHESTRATOR_RULES } from "@/lib/ai/worker-behavior-prompt";
@@ -289,9 +290,21 @@ function validateOrchestratorObject(
   mode: "tools" | "json",
   rawText?: string,
 ): OrchestratorRunResult {
-  const validated = orchestratorResponseSchema.safeParse(parsed);
+  const normalized = normalizeOrchestratorPayload(parsed);
+  const validated = orchestratorResponseSchema.safeParse(normalized);
 
   if (!validated.success) {
+    console.warn(
+      "[ai-orchestrator] validation failed",
+      JSON.stringify({
+        mode,
+        issues: validated.error.issues.slice(0, 8).map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      }),
+    );
+
     return {
       success: false,
       errorCode: "validation_failed",

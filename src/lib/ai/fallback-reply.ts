@@ -1,24 +1,12 @@
 import { getPlatformPromptContent } from "@/services/platform-prompts.service";
 import { parseGuardFallbackPrompt } from "@orzu/platform-ai";
 
-const BOOKING_OR_ORDER_PATTERNS = [
-  /\b(book|booking|reserve|reservation|appointment|schedule|order|check[- ]?in|check[- ]?out|room|table|slot)\b/i,
-  /\b(брон|заброн|брони|резерв|запис|заказ|номер|комнат|столик|заезд|выезд|свободн)\b/i,
-  /\b(bron|band|xona|stol|buyurtma|navbat|uchrashuv)\b/i,
-];
+import { isLikelyBookingOrOrderMessage } from "@/lib/ai/booking-message-context";
+
+export { isLikelyBookingOrOrderMessage };
 
 function getFallbackByLanguage(): Record<string, string> {
   return parseGuardFallbackPrompt(getPlatformPromptContent("guard_fallback"));
-}
-
-export function isLikelyBookingOrOrderMessage(message: string): boolean {
-  const trimmed = message.trim();
-
-  if (!trimmed) {
-    return false;
-  }
-
-  return BOOKING_OR_ORDER_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 function resolveActionFallbackReplyMessage(input: {

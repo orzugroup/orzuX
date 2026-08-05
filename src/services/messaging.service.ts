@@ -450,7 +450,7 @@ export async function processChannelAutoReply(input: {
     });
   }
 
-  if (!reply.orchestrationCompleted) {
+  if (!reply.orchestrationCompleted && !reply.orchestrationAttempted) {
     await scheduleCrmOrchestration({
       businessId,
       channel,

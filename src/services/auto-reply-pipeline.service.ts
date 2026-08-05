@@ -44,7 +44,11 @@ import {
   reportAgentActions,
 } from "@/services/agent-action-reporting.service";
 import {
-  isLikelyBookingOrOrderMessage,
+  hasBookingConfirmedAction,
+  isBookingRelatedTurn,
+  looksLikeFalseBookingConfirmation,
+} from "@/lib/ai/booking-message-context";
+import {
   resolveAssistantFallbackReplyMessage,
 } from "@/lib/ai/fallback-reply";
 import {
@@ -120,6 +124,8 @@ export type AutoReplyGenerationSuccess = {
   language: string;
   /** True when CRM/calendar worker actions already ran in this turn. */
   orchestrationCompleted?: boolean;
+  /** Inline orchestrator already ran for this turn (skip duplicate queue). */
+  orchestrationAttempted?: boolean;
 };
 
 export type AutoReplyGenerationFailure = {
@@ -206,8 +212,11 @@ function mapKnowledgeForLlm(
 async function buildFastBookingReplyContext(input: {
   businessId: string;
   clientMessage: string;
+  conversationHistory?: ConversationTurn[];
 }): Promise<string> {
-  if (!isLikelyBookingOrOrderMessage(input.clientMessage)) {
+  if (
+    !isBookingRelatedTurn(input.clientMessage, input.conversationHistory)
+  ) {
     return "";
   }
 
@@ -233,7 +242,7 @@ async function buildFastBookingReplyContext(input: {
       calendarBookingEnabled
         ? "Calendar booking is enabled. If date/time is clear, the system books in this turn — confirm the outcome when action results are provided. If date/time is missing, ask exactly one clear question."
         : "Calendar booking is not configured yet. Ask only for the missing date/time/contact detail, capture the request as a task, and never promise a manager callback.",
-      "Use live availability below to answer whether a slot is open. State price only when pricing exists in business knowledge or conversation context; never invent price.",
+      "Use live availability below to answer whether a slot is open. Only confirm a booking after the system reports Booking confirmed. Never invent slot times — list only slots from this availability section.",
       availabilityText.trim(),
       bookingPagesText.trim(),
       bookableResourcesText.trim(),
@@ -750,7 +759,6 @@ async function prepareAutoReplyContext(input: {
     knowledgeEntries,
     crmSnapshot,
     conversationMemory,
-    bookingContext,
   ] = await Promise.all([
       input.conversationHistory ??
         (input.conversationId
@@ -774,16 +782,17 @@ async function prepareAutoReplyContext(input: {
             input.businessId,
           )
         : Promise.resolve(null),
-      buildFastBookingReplyContext({
-        businessId: input.businessId,
-        clientMessage: input.clientMessage,
-      }),
     ]);
 
   const trimmedHistory = trimConversationHistory(
     conversationHistory,
     historyLimit,
   );
+  const bookingContext = await buildFastBookingReplyContext({
+    businessId: input.businessId,
+    clientMessage: input.clientMessage,
+    conversationHistory: trimmedHistory,
+  });
   const trimmedKnowledge = trimKnowledgeEntriesByTokenBudget(
     knowledgeEntries,
     AI_CONTEXT_LIMITS.maxKnowledgeEntries,
@@ -841,6 +850,50 @@ async function prepareAutoReplyContext(input: {
   };
 }
 
+function buildSafeBookingReplyWhenNotConfirmed(input: {
+  language: string;
+  bookingContext: string;
+  clientMessage: string;
+  customFallback?: string | null;
+}): string {
+  const slotLines = input.bookingContext
+    .split("\n")
+    .filter((line) => line.trim().startsWith("- "))
+    .slice(0, 6);
+
+  const language = input.language.trim().toLowerCase();
+
+  if (language.includes("russian") || language === "ru") {
+    if (slotLines.length > 0) {
+      return [
+        "Пока не могу автоматически подтвердить запись в календаре.",
+        "Свободные слоты по календарю:",
+        ...slotLines.map((line) => line.trim()),
+        "Напишите, какой слот вам подходит — оформлю запись.",
+      ].join("\n");
+    }
+
+    return "Пока не могу подтвердить запись в календаре. Напишите удобные дату и время — проверю доступность и оформлю.";
+  }
+
+  if (slotLines.length > 0) {
+    return [
+      "I cannot confirm the calendar booking automatically yet.",
+      "Open slots:",
+      ...slotLines.map((line) => line.trim()),
+      "Tell me which slot works and I will book it.",
+    ].join("\n");
+  }
+
+  return (
+    resolveSafeAssistantFallbackReplyMessage({
+      language: input.language,
+      clientMessage: input.clientMessage,
+      customMessage: input.customFallback,
+    }) ?? "Please share your preferred date and time so I can check availability."
+  );
+}
+
 /** Reply first with the single AI Agent profile. Booking/order turns run CRM first. */
 export async function generateFastAssistantReply(input: {
   admin: MessagingDbClient;
@@ -866,18 +919,27 @@ export async function generateFastAssistantReply(input: {
   }
 
   let orchestrationCompleted = false;
+  let orchestrationAttempted = false;
   let actionOutcomeContext = "";
   let preferredConfirmation: string | null = null;
+  let actionsApplied: string[] = [];
+
+  const bookingTurn = isBookingRelatedTurn(
+    prep.clientMessage,
+    prep.conversationHistory,
+  );
 
   const shouldActBeforeReply =
     !input.skipWorkerActions &&
     Boolean(prep.conversationId) &&
-    isLikelyBookingOrOrderMessage(prep.clientMessage) &&
+    bookingTurn &&
     (prep.profile.canCreateCalendarEvent ||
       prep.profile.canCreateTask ||
       prep.profile.canCreateDeal);
 
   if (shouldActBeforeReply && prep.conversationId) {
+    orchestrationAttempted = true;
+
     try {
       const cycle = await runAutoReplyBackgroundOrchestration({
         admin: prep.admin,
@@ -889,6 +951,7 @@ export async function generateFastAssistantReply(input: {
       });
 
       orchestrationCompleted = cycle.completed;
+      actionsApplied = cycle.actionsApplied;
 
       if (cycle.actionsApplied.length > 0 || cycle.clientSummary) {
         preferredConfirmation = buildCustomerFacingActionSummary({
@@ -903,6 +966,12 @@ export async function generateFastAssistantReply(input: {
           language: prep.profile.language,
           agentName: prep.profile.name,
         });
+      } else if (bookingTurn && prep.profile.canCreateCalendarEvent) {
+        actionOutcomeContext = [
+          "Calendar booking was NOT confirmed for this turn.",
+          "Do NOT tell the customer they are booked or that an appointment exists.",
+          "Offer only times from live availability in the booking context, or ask one clarifying question.",
+        ].join("\n");
       }
     } catch (error) {
       console.warn(
@@ -910,6 +979,13 @@ export async function generateFastAssistantReply(input: {
         error instanceof Error ? error.message : "unknown",
       );
       orchestrationCompleted = false;
+
+      if (bookingTurn && prep.profile.canCreateCalendarEvent) {
+        actionOutcomeContext = [
+          "Calendar booking failed for this turn.",
+          "Do NOT confirm a booking in your reply.",
+        ].join("\n");
+      }
     }
   }
 
@@ -966,6 +1042,7 @@ export async function generateFastAssistantReply(input: {
       language: voice.language,
       isFallback: true,
       orchestrationCompleted,
+      orchestrationAttempted,
     };
   }
 
@@ -1000,6 +1077,30 @@ export async function generateFastAssistantReply(input: {
 
   let finalText = safeReply.text ?? fallbackText;
 
+  const bookingConfirmed = hasBookingConfirmedAction(actionsApplied);
+
+  if (
+    bookingTurn &&
+    prep.profile.canCreateCalendarEvent &&
+    !bookingConfirmed &&
+    looksLikeFalseBookingConfirmation(finalText)
+  ) {
+    console.warn(
+      "[auto-reply-pipeline] blocked unconfirmed booking confirmation",
+      JSON.stringify({
+        businessId: prep.businessId,
+        conversationId: prep.conversationId,
+        channel: prep.channel,
+      }),
+    );
+    finalText = buildSafeBookingReplyWhenNotConfirmed({
+      language: voice.language,
+      bookingContext: prep.bookingContext,
+      clientMessage: prep.clientMessage,
+      customFallback: prep.fallbackReplyMessage,
+    });
+  }
+
   if (safeReply.rewritten || looksLikePassiveWaitingReply(finalText)) {
     if (preferredConfirmation) {
       const safeConfirmation = sanitizeWorkerFacingReply(preferredConfirmation, {
@@ -1026,6 +1127,7 @@ export async function generateFastAssistantReply(input: {
     language: voice.language,
     isFallback: safeReply.rewritten && !preferredConfirmation,
     orchestrationCompleted,
+    orchestrationAttempted,
   };
 }
 
