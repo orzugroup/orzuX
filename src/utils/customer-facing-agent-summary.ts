@@ -59,6 +59,27 @@ function stripBookingFailurePrefix(label: string): string {
   return label.replace(/^booking not (confirmed|created):\s*/i, "").trim();
 }
 
+export function isSoftDataCollectionBookingBlock(label: string): boolean {
+  const reason = stripBookingFailurePrefix(normalizeText(label)).toLowerCase();
+  return reason === "waiting for required customer data";
+}
+
+function localizeBookingFailureReason(reason: string, language: string): string {
+  const key = reason.trim().toLowerCase();
+
+  if (key === "waiting for required customer data") {
+    if (language === "Russian") {
+      return "нужны имя и телефон (или email) — напишите, пожалуйста, и я сразу оформлю запись";
+    }
+    if (language === "Uzbek") {
+      return "ism va telefon (yoki email) kerak — yozing, darhol bron qilaman";
+    }
+    return "I need your name and phone (or email) to confirm the booking.";
+  }
+
+  return reason;
+}
+
 function hasBookingFailureWithoutSuccess(actionsApplied: string[]): boolean {
   const hasFailure = actionsApplied.some((label) =>
     BOOKING_FAILURE_ACTION_PATTERNS.some((pattern) => pattern.test(normalizeText(label))),
@@ -186,8 +207,19 @@ export function shouldSendCustomerActionFollowUp(input: {
     ),
   );
 
-  // Always notify customer when a booking attempt failed.
+  // Always notify customer when a booking attempt failed (except CRM data-collection soft blocks).
   if (bookingFailure) {
+    const softBlockOnly = input.actionsApplied.every(
+      (label) =>
+        !BOOKING_FAILURE_ACTION_PATTERNS.some((pattern) =>
+          pattern.test(normalizeText(label)),
+        ) || isSoftDataCollectionBookingBlock(label),
+    );
+
+    if (softBlockOnly) {
+      return false;
+    }
+
     return true;
   }
 
@@ -226,21 +258,27 @@ export function buildBookingFailureFollowUp(input: {
   }
 
   const reason = stripBookingFailurePrefix(failureLabel);
+
+  if (isSoftDataCollectionBookingBlock(failureLabel)) {
+    return null;
+  }
+
   const language = input.language.trim();
+  const customerReason = localizeBookingFailureReason(reason, language);
 
   if (language === "Russian") {
-    return reason
-      ? `Пока не получилось подтвердить бронь: ${reason}`
+    return customerReason
+      ? `Пока не получилось подтвердить бронь: ${customerReason}`
       : "Пока не получилось подтвердить бронь. Предложу другой доступный вариант прямо здесь.";
   }
 
   if (language === "Uzbek") {
-    return reason
-      ? `Bronni tasdiqlab bo'lmadi: ${reason}`
+    return customerReason
+      ? `Bronni tasdiqlab bo'lmadi: ${customerReason}`
       : "Bronni hozircha tasdiqlab bo'lmadi. Shu chatda boshqa mos variantni taklif qilaman.";
   }
 
-  return reason
-    ? `I could not confirm the booking yet: ${reason}`
+  return customerReason
+    ? `I could not confirm the booking yet: ${customerReason}`
     : "I could not confirm the booking yet. I will offer another available option right here.";
 }

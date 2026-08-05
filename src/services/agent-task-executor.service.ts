@@ -54,6 +54,7 @@ import {
 import { sendChannelAutoReplyText } from "@/services/channels/channel-auto-reply-send.service";
 import { insertChannelMessage } from "@/services/messaging.service";
 import {
+  computeCollectionGaps,
   mapCollectedAnswersToContactUpdates,
   mergeCollectionAnswersIntoCustomFields,
   type DataCollectionField,
@@ -1825,6 +1826,33 @@ async function applyCreateCalendarEvent(
     : `Booking confirmed${resourceNote} — ${bookingResult.slotLabel}.${emailNote}`;
 }
 
+function isRequiredCollectionComplete(
+  fields: DataCollectionField[],
+  contact: ContactSnapshot,
+): boolean {
+  if (fields.length === 0) {
+    return true;
+  }
+
+  const gaps = computeCollectionGaps({
+    niche: "generic",
+    storedFields: fields,
+    contact: {
+      name: contact.name,
+      email: contact.email,
+      phone: contact.phoneNumber,
+      company: contact.customFields.company,
+      location: contact.customFields.location,
+      dealValue: contact.dealValue,
+      expectedCloseDate: contact.expectedCloseDate,
+      collection: contact.customFields.collection,
+      customFields: contact.customFields as unknown as Record<string, unknown>,
+    },
+  });
+
+  return gaps.requiredComplete;
+}
+
 async function applyExecutorPlan(
   admin: MessagingDbClient,
   businessId: string,
@@ -1870,6 +1898,13 @@ async function applyExecutorPlan(
   let workingContact =
     (await loadContactSnapshot(admin, businessId, contact.id)) ?? contact;
 
+  if (plan.contactUpdates && Object.keys(plan.contactUpdates).length > 0) {
+    requiredComplete = isRequiredCollectionComplete(
+      collectionFields,
+      workingContact,
+    );
+  }
+
   for (const action of collectionActions) {
     if (action.type !== "update_collected_fields") continue;
     const results = await applyUpdateCollectedFields(
@@ -1885,7 +1920,10 @@ async function applyExecutorPlan(
       workingContact =
         (await loadContactSnapshot(admin, businessId, contact.id)) ??
         workingContact;
-      requiredComplete = true;
+      requiredComplete = isRequiredCollectionComplete(
+        collectionFields,
+        workingContact,
+      );
       logAgentToolAudit({
         tool: action.type,
         businessId,
@@ -1904,19 +1942,15 @@ async function applyExecutorPlan(
       continue;
     }
 
-    // Soft gate: delay deal/booking until required collection is complete.
+    // Soft gate: delay deal/order until required collection is complete.
+    // Calendar booking uses booking-page validation separately — do not block it here.
     if (
       !requiredComplete &&
       (action.type === "create_deal" ||
         action.type === "create_order" ||
-        action.type === "update_deal" ||
-        action.type === "create_calendar_event")
+        action.type === "update_deal")
     ) {
-      if (action.type === "create_calendar_event") {
-        applied.push("Booking not confirmed: waiting for required customer data");
-      } else {
-        skipped.push(`${action.type} (waiting for required data)`);
-      }
+      skipped.push(`${action.type} (waiting for required data)`);
       continue;
     }
 
