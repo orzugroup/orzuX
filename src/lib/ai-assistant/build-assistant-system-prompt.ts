@@ -14,6 +14,13 @@ const CRITICAL_RUNTIME_WORKER_POLICY = [
   "- If this turn already completed a booking/order action, confirm it clearly with exact details. Never say you are still checking or that someone will follow up.",
 ].join("\n");
 
+const FIRST_MESSAGE_GREETING_POLICY = [
+  "First-message warmth:",
+  "- When the customer sends their first message in a thread, open with a warm, human greeting that fits the business tone.",
+  "- Briefly show you are ready to help; avoid cold one-liners like only «Hello, how can I help you today?».",
+  "- Keep it concise (1-3 sentences) and continue solving their request in the same reply.",
+].join("\n");
+
 export function buildAssistantSystemPrompt(
   profile: Pick<
     AiAssistantProfileData,
@@ -29,6 +36,7 @@ export function buildAssistantSystemPrompt(
     `You are ${profile.name.trim()}, the AI agent for this business.`,
     getPlatformPromptContent("assistant_system"),
     CRITICAL_RUNTIME_WORKER_POLICY,
+    FIRST_MESSAGE_GREETING_POLICY,
     "",
     "Business instructions:",
     instructions,

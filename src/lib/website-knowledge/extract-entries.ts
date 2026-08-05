@@ -9,6 +9,9 @@ import {
 } from "@/features/knowledge-base/categories";
 import type { CrawledPage } from "@/lib/website-knowledge/crawler";
 import { truncateText } from "@/lib/website-knowledge/html-text";
+import { organizeWebsiteKnowledgeWithClaude } from "@/lib/website-knowledge/claude-knowledge-organizer";
+import { assignUniqueKnowledgeSourceUrls } from "@/lib/website-knowledge/source-url";
+import { hasClaudeEnv } from "@/services/claude.service";
 import type { KnowledgeEntryMetadata } from "@/types/knowledge-category.types";
 
 export type ExtractedKnowledgeEntry = {
@@ -236,18 +239,41 @@ async function curateEntriesWithAi(
   }
 }
 
+function basicEntriesFromPages(pages: CrawledPage[]): ExtractedKnowledgeEntry[] {
+  return pages.map((page) => ({
+    title: page.title.slice(0, 200) || "Page",
+    content: truncateText(page.text, 3_000),
+    category: resolveKnowledgeCategory("Additional"),
+    sourceUrl: page.url,
+    metadata: {},
+  }));
+}
+
 export async function extractKnowledgeEntriesFromPages(
   pages: CrawledPage[],
   siteUrl: string,
+  businessId?: string,
 ): Promise<ExtractedKnowledgeEntry[]> {
-  if (!hasGeminiEnv() || pages.length === 0) {
+  if (pages.length === 0) {
     return [];
   }
 
-  const model = getGeminiModel({ model: getGeminiDefaultModel() });
+  const canUseGemini = hasGeminiEnv();
+  const canUseClaude = hasClaudeEnv();
+
+  if (!canUseGemini && !canUseClaude) {
+    return [];
+  }
+
+  const model = canUseGemini
+    ? getGeminiModel({ model: getGeminiDefaultModel() })
+    : null;
   const allEntries: ExtractedKnowledgeEntry[] = [];
   const categoryList = KNOWLEDGE_CATEGORIES.join("|");
 
+  if (!canUseGemini) {
+    allEntries.push(...basicEntriesFromPages(pages));
+  } else {
   for (const page of pages) {
     if (allEntries.length >= MAX_TOTAL_ENTRIES) {
       break;
@@ -285,7 +311,7 @@ export async function extractKnowledgeEntriesFromPages(
     ].join("\n");
 
     try {
-      const result = await model.generateContent({
+      const result = await model!.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         safetySettings: [...GEMINI_SAFETY_SETTINGS],
       });
@@ -305,12 +331,24 @@ export async function extractKnowledgeEntriesFromPages(
       continue;
     }
   }
+  }
 
   const deduped = dedupeEntries(allEntries);
-  const curated = await curateEntriesWithAi(deduped, siteUrl, model);
-  const finalEntries = sortEntries(dedupeEntries(curated)).slice(
-    0,
-    MAX_TOTAL_ENTRIES,
+  let curated = deduped;
+
+  if (businessId && canUseClaude) {
+    curated = await organizeWebsiteKnowledgeWithClaude({
+      businessId,
+      siteUrl,
+      pages,
+      seedEntries: deduped,
+    });
+  } else if (model) {
+    curated = await curateEntriesWithAi(deduped, siteUrl, model);
+  }
+
+  const finalEntries = assignUniqueKnowledgeSourceUrls(
+    sortEntries(dedupeEntries(curated)).slice(0, MAX_TOTAL_ENTRIES),
   );
 
   return finalEntries;

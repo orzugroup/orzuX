@@ -7,7 +7,8 @@ import { scheduleAfterResponse } from "@/lib/queue/schedule-deferred";
 import { APP_ROUTES, DASHBOARD_ROUTES } from "@/constants/routes";
 import { WEBSITE_KNOWLEDGE_MESSAGES } from "@/features/website-knowledge/constants";
 import { hasGeminiEnv, hasSupabaseEnv } from "@/lib/env";
-import { crawlWebsite } from "@/lib/website-knowledge/crawler";
+import { crawlWebsiteWithFallback } from "@/lib/website-knowledge/crawler";
+import { hasClaudeEnv } from "@/services/claude.service";
 import { extractKnowledgeEntriesFromPages } from "@/lib/website-knowledge/extract-entries";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -34,6 +35,10 @@ function revalidateWebsiteKnowledgePaths(): void {
   revalidatePath(DASHBOARD_ROUTES.integrations);
   revalidatePath(`${DASHBOARD_ROUTES.integrations}/website_knowledge`);
   revalidatePath(APP_ROUTES.dashboard);
+}
+
+function hasWebsiteKnowledgeAiEnv(): boolean {
+  return hasGeminiEnv() || hasClaudeEnv();
 }
 
 async function getOwnedBusinessId(): Promise<string | null> {
@@ -69,7 +74,7 @@ export async function saveWebsiteKnowledgeSetup(
     };
   }
 
-  if (!hasGeminiEnv()) {
+  if (!hasWebsiteKnowledgeAiEnv()) {
     return {
       success: false,
       error: { code: "MISSING_CONFIG", message: WEBSITE_KNOWLEDGE_MESSAGES.geminiRequired },
@@ -219,7 +224,7 @@ export async function runWebsiteKnowledgeSyncForRow(
   syncRow: WebsiteKnowledgeSync,
   options?: { skipStatusUpdate?: boolean },
 ): Promise<SyncWebsiteKnowledgeResult> {
-  if (!hasSupabaseEnv() || !hasGeminiEnv()) {
+  if (!hasSupabaseEnv() || !hasWebsiteKnowledgeAiEnv()) {
     return {
       success: false,
       error: { code: "MISSING_CONFIG", message: WEBSITE_KNOWLEDGE_MESSAGES.notConfigured },
@@ -239,13 +244,26 @@ export async function runWebsiteKnowledgeSyncForRow(
   }
 
   try {
-    const pages = await crawlWebsite(syncRow.site_url);
+    const { pages, resolvedStartUrl } = await crawlWebsiteWithFallback(
+      syncRow.site_url,
+    );
 
     if (pages.length === 0) {
       throw new Error(WEBSITE_KNOWLEDGE_MESSAGES.noPagesFound);
     }
 
-    const extracted = await extractKnowledgeEntriesFromPages(pages, syncRow.site_url);
+    if (resolvedStartUrl !== syncRow.site_url) {
+      await admin
+        .from("website_knowledge_syncs")
+        .update({ site_url: resolvedStartUrl })
+        .eq("id", syncRow.id);
+    }
+
+    const extracted = await extractKnowledgeEntriesFromPages(
+      pages,
+      resolvedStartUrl,
+      syncRow.business_id,
+    );
 
     if (extracted.length === 0) {
       throw new Error(WEBSITE_KNOWLEDGE_MESSAGES.noEntriesExtracted);
@@ -378,7 +396,7 @@ export async function runDueWebsiteKnowledgeSyncs(): Promise<{
   processed: number;
   succeeded: number;
 }> {
-  if (!hasSupabaseEnv() || !hasGeminiEnv()) {
+  if (!hasSupabaseEnv() || !hasWebsiteKnowledgeAiEnv()) {
     return { processed: 0, succeeded: 0 };
   }
 

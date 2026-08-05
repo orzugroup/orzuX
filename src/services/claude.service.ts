@@ -43,6 +43,7 @@ async function callClaudeMessages(input: {
   systemInstruction?: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   apiKey?: string;
+  maxTokens?: number;
 }): Promise<
   | { success: true; text: string; model: string; usage: ClaudeUsage }
   | { success: false; message: string }
@@ -62,7 +63,7 @@ async function callClaudeMessages(input: {
     },
     body: JSON.stringify({
       model: input.model,
-      max_tokens: 1024,
+      max_tokens: input.maxTokens ?? 1024,
       system: input.systemInstruction,
       messages: input.messages.map((message) => ({
         role: message.role,
@@ -286,4 +287,33 @@ export async function generateClaudeAssistantReply(
     usage: result.usage,
     provider: "claude",
   };
+}
+
+const WEBSITE_KNOWLEDGE_CLAUDE_MODEL = "claude-3-5-sonnet-latest";
+
+export async function generateClaudeKnowledgeJson(input: {
+  systemInstruction?: string;
+  prompt: string;
+  maxTokens?: number;
+  model?: string;
+}): Promise<
+  | { success: true; text: string }
+  | { success: false; message: string }
+> {
+  if (!hasClaudeEnv()) {
+    return { success: false, message: "Anthropic API key missing." };
+  }
+
+  const result = await callClaudeMessages({
+    model: input.model ?? WEBSITE_KNOWLEDGE_CLAUDE_MODEL,
+    systemInstruction: input.systemInstruction,
+    messages: [{ role: "user", content: input.prompt }],
+    maxTokens: input.maxTokens ?? 4096,
+  });
+
+  if (!result.success) {
+    return { success: false, message: result.message };
+  }
+
+  return { success: true, text: result.text };
 }

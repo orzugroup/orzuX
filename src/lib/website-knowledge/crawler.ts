@@ -1,4 +1,5 @@
 import { extractLinksFromHtml, htmlToPlainText, truncateText } from "@/lib/website-knowledge/html-text";
+import { expandWebsiteStartUrls } from "@/lib/website-knowledge/url-variants";
 
 export type CrawledPage = {
   url: string;
@@ -151,4 +152,28 @@ export async function crawlWebsite(startUrlInput: string): Promise<CrawledPage[]
   }
 
   return pages;
+}
+
+/** Try apex/www and http/https until at least one page is indexed. */
+export async function crawlWebsiteWithFallback(
+  startUrlInput: string,
+): Promise<{ pages: CrawledPage[]; resolvedStartUrl: string }> {
+  const candidates = expandWebsiteStartUrls(startUrlInput);
+  let best: CrawledPage[] = [];
+  let resolvedStartUrl = candidates[0] ?? startUrlInput;
+
+  for (const candidate of candidates) {
+    const pages = await crawlWebsite(candidate);
+
+    if (pages.length > best.length) {
+      best = pages;
+      resolvedStartUrl = candidate;
+    }
+
+    if (pages.length >= 3) {
+      return { pages, resolvedStartUrl: candidate };
+    }
+  }
+
+  return { pages: best, resolvedStartUrl };
 }

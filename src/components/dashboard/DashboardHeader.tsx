@@ -13,9 +13,7 @@ import { useOptionalContactsChrome } from "@/components/contacts/contacts-chrome
 import { useOptionalInboxChrome } from "@/components/chats/inbox/use-optional-inbox-chrome";
 import { OrdersToolbar } from "@/components/orders/OrdersToolbar";
 import { useOptionalOrdersChrome } from "@/components/orders/orders-chrome-context";
-import { AiHumanRequestsButton } from "@/components/dashboard/AiHumanRequestsButton";
 import { DashboardPageHeading } from "@/components/dashboard/DashboardPageHeading";
-import { MobileAccountMenu } from "@/components/dashboard/MobileAccountMenu";
 import { DASHBOARD_ROUTES } from "@/constants/routes";
 import { getDashboardPageHeaderMeta } from "@/features/dashboard/page-header-meta";
 import { cn } from "@/lib/utils";
@@ -71,9 +69,7 @@ export function DashboardHeader() {
   const hideChromeOnMobileThread =
     (isInboxPath(pathname) && conversationOpen) ||
     (isContactsPath(pathname) && contactOpen);
-  const isHome = pathname === DASHBOARD_ROUTES.overview;
-  /** Mobile: top chrome only on Home (notifications + account). Other sections fill to the top. */
-  const showOnMobile = isHome;
+  const showOnMobile = pathname === DASHBOARD_ROUTES.overview;
 
   return (
     <header
@@ -147,13 +143,6 @@ export function DashboardHeader() {
       ) : (
         <div className="flex-1" />
       )}
-
-      {isHome ? (
-        <div className="ml-auto flex shrink-0 items-center gap-0.5 md:hidden">
-          <AiHumanRequestsButton variant="icon" />
-          <MobileAccountMenu />
-        </div>
-      ) : null}
     </header>
   );
 }

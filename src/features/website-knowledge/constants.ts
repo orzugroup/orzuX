@@ -33,7 +33,8 @@ export const WEBSITE_KNOWLEDGE_MESSAGES = {
   noBusinessTitle: "Business profile required",
   noBusinessDescription: "Complete business settings before syncing your website.",
   notConfigured: "Supabase is not configured.",
-  geminiRequired: "GEMINI_API_KEY is required to extract knowledge from your website.",
+  geminiRequired:
+    "Add GEMINI_API_KEY or ANTHROPIC_API_KEY to scan and organize website knowledge.",
   genericError: "Something went wrong. Please try again.",
   disconnect: "Remove website sync",
   disconnectSuccess: "Website knowledge sync removed.",
