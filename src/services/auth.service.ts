@@ -839,6 +839,9 @@ export async function updatePassword(
     };
   }
 
+  // Revoke refresh tokens on other devices/sessions; keep current session (CASA 2.2.2).
+  await supabase.auth.signOut({ scope: "others" });
+
   return { success: true };
 }
 
