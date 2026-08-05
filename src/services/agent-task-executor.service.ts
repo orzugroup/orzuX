@@ -1,5 +1,6 @@
 import "server-only";
 
+import { revalidatePath } from "next/cache";
 import { getMessageRepository } from "@/repositories/message.repository";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
