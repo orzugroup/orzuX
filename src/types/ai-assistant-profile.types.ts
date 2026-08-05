@@ -12,7 +12,6 @@ import { agentScheduleSlotsSchema } from "@/types/ai-assistant-schedule.types";
 import type { VoiceReplyMode } from "@/types/elevenlabs.types";
 import type { AgentScheduleSlot } from "@/types/ai-assistant-schedule.types";
 import type { AiIntensity } from "@/lib/ai/ai-intensity";
-import { parseAiIntensity } from "@/lib/ai/ai-intensity";
 
 const replyWaitValues = REPLY_WAIT_MS_OPTIONS as [number, ...number[]];
 

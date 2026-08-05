@@ -1,19 +1,15 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  buildCrmActionIdempotencyKey,
-  buildExecutorPlanIdempotencyKey,
-} from "@/lib/crm/executor-idempotency-keys";
 import type { Database } from "@/types/database.types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-type MessagingDbClient = SupabaseClient<Database>;
 
 export {
   buildCrmActionIdempotencyKey,
   buildExecutorPlanIdempotencyKey,
 } from "@/lib/crm/executor-idempotency-keys";
+
+type MessagingDbClient = SupabaseClient<Database>;
 
 export async function hasCrmIdempotencyKey(
   admin: MessagingDbClient,
