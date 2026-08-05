@@ -1,6 +1,13 @@
 "use server";
 
+import {
+  assertOtpVerifyAllowed,
+  clearOtpVerifyFailures,
+  formatAuthGuardMessage,
+  recordOtpVerifyFailure,
+} from "@/lib/security/auth-brute-force";
 import { verifyRecoveryOtpCode } from "@/services/auth.service";
+import { PASSWORD_RESET_MESSAGES } from "@/features/auth/constants";
 import type {
   PasswordResetRequestResult,
   VerifyRecoveryOtpInput,
@@ -22,5 +29,34 @@ export async function verifyRecoveryOtpAction(
     };
   }
 
-  return verifyRecoveryOtpCode(parsed.data);
+  const guard = await assertOtpVerifyAllowed(parsed.data.email, "recovery");
+
+  if (!guard.allowed) {
+    return {
+      success: false,
+      error: {
+        code: "INVALID_SESSION",
+        message: formatAuthGuardMessage(guard),
+      },
+    };
+  }
+
+  const result = await verifyRecoveryOtpCode(parsed.data);
+
+  if (!result.success && result.error?.code === "INVALID_SESSION") {
+    await recordOtpVerifyFailure(parsed.data.email, "recovery");
+    return {
+      ...result,
+      error: {
+        ...result.error,
+        message: result.error.message ?? PASSWORD_RESET_MESSAGES.invalidSession,
+      },
+    };
+  }
+
+  if (result.success) {
+    await clearOtpVerifyFailures(parsed.data.email, "recovery");
+  }
+
+  return result;
 }

@@ -19,6 +19,9 @@ export const REGISTRATION_MESSAGES = {
 
 export const LOGIN_MESSAGES = {
   invalidCredentials: "Invalid email or password. Please try again.",
+  accountLocked:
+    "Too many failed sign-in attempts. Please wait before trying again.",
+  tooManyAttempts: "Too many sign-in attempts. Please try again later.",
   emailNotVerified:
     "Please verify your email before signing in. Check your inbox or resend the verification email.",
   genericError: "Unable to sign in. Please try again.",

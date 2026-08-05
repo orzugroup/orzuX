@@ -183,7 +183,8 @@ export type LoginErrorCode =
   | "INVALID_CREDENTIALS"
   | "EMAIL_NOT_VERIFIED"
   | "MISSING_CONFIG"
-  | "LOGIN_FAILED";
+  | "LOGIN_FAILED"
+  | "ACCOUNT_LOCKED";
 
 export type LoginResult =
   | { success: true; data: { email: string } }

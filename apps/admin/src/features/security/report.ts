@@ -81,6 +81,32 @@ export const SECURITY_CATEGORIES: SecurityCategory[] = [
         status: "active",
       },
       {
+        name: "Защита входа от перебора (CASA 1.1.1)",
+        purpose:
+          "Ограничение частоты попыток входа, временная блокировка после неудачных паролей, лимит с одного IP.",
+        how: "Redis (Upstash): мин. 3 с между попытками на email, блокировка на 15 мин после 5 ошибок, до 30 попыток с IP / 15 мин; Cloudflare Turnstile на форме входа. В prod без Redis вход блокируется (fail-closed).",
+        status: "configurable",
+        reference:
+          "src/lib/security/auth-brute-force.ts, src/features/auth/actions/sign-in-with-email.ts",
+      },
+      {
+        name: "Защита OTP и сброса пароля (CASA 1.3.4)",
+        purpose:
+          "Ограничение перебора кодов подтверждения email и восстановления пароля.",
+        how: "До 5 неверных проверок кода на email за 15 мин; не более 5 запросов сброса пароля в час на email.",
+        status: "configurable",
+        reference:
+          "src/features/auth/actions/verify-email-otp.ts, verify-recovery-otp.ts, request-password-reset.ts",
+      },
+      {
+        name: "CASA / ESOF evidence (аутентификация и сессии)",
+        purpose:
+          "Сопоставление требований аудита (1.1.x, 1.3.x, 2.x) с реализацией для загрузки доказательств.",
+        how: "Таблица ID → статус → код/настройки Supabase.",
+        status: "active",
+        reference: "docs/security/casa-authentication-evidence.md",
+      },
+      {
         name: "Row Level Security (RLS)",
         purpose:
           "Изоляция арендаторов: один бизнес физически не может прочитать данные другого.",

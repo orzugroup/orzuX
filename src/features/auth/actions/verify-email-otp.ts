@@ -1,6 +1,13 @@
 "use server";
 
+import {
+  assertOtpVerifyAllowed,
+  clearOtpVerifyFailures,
+  formatAuthGuardMessage,
+  recordOtpVerifyFailure,
+} from "@/lib/security/auth-brute-force";
 import { verifyEmailWithOtpCode } from "@/services/auth.service";
+import { REGISTRATION_MESSAGES } from "@/features/auth/constants";
 import type {
   VerificationResult,
   VerifyEmailOtpInput,
@@ -22,5 +29,34 @@ export async function verifyEmailOtpAction(
     };
   }
 
-  return verifyEmailWithOtpCode(parsed.data);
+  const guard = await assertOtpVerifyAllowed(parsed.data.email, "email");
+
+  if (!guard.allowed) {
+    return {
+      success: false,
+      error: {
+        code: "VERIFICATION_FAILED",
+        message: formatAuthGuardMessage(guard),
+      },
+    };
+  }
+
+  const result = await verifyEmailWithOtpCode(parsed.data);
+
+  if (!result.success && result.error?.code === "VERIFICATION_FAILED") {
+    await recordOtpVerifyFailure(parsed.data.email, "email");
+    return {
+      ...result,
+      error: {
+        ...result.error,
+        message: result.error.message ?? REGISTRATION_MESSAGES.otpInvalid,
+      },
+    };
+  }
+
+  if (result.success) {
+    await clearOtpVerifyFailures(parsed.data.email, "email");
+  }
+
+  return result;
 }

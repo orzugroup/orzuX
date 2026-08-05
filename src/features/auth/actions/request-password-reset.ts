@@ -1,5 +1,9 @@
 "use server";
 
+import {
+  assertPasswordResetRequestAllowed,
+  formatAuthGuardMessage,
+} from "@/lib/security/auth-brute-force";
 import { requestPasswordReset } from "@/services/auth.service";
 import type {
   PasswordResetRequestResult,
@@ -18,6 +22,18 @@ export async function requestPasswordResetAction(
       error: {
         code: "VALIDATION_ERROR",
         message: parsed.error.issues[0]?.message ?? "Invalid input.",
+      },
+    };
+  }
+
+  const guard = await assertPasswordResetRequestAllowed(parsed.data.email);
+
+  if (!guard.allowed) {
+    return {
+      success: false,
+      error: {
+        code: "RESET_FAILED",
+        message: formatAuthGuardMessage(guard),
       },
     };
   }
