@@ -30,6 +30,7 @@ import {
 } from "@/services/ai-calendar-booking.service";
 import { formatAvailabilityForAiPrompt } from "@/services/calendar-availability.service";
 import { listPublishedBookingPagesForBusinessAdmin } from "@/services/booking-pages.service";
+import { findUpcomingEventsForContact } from "@/services/event-reminder.service";
 import {
   buildHumanHandoffFollowUpMessage,
   createAiHumanRequest,
@@ -45,8 +46,13 @@ import {
 } from "@/services/agent-action-reporting.service";
 import {
   hasBookingConfirmedAction,
+  hasBookingRescheduleOrCancelAction,
   isBookingRelatedTurn,
+  isBookingManagementTurn,
+  isExplicitCustomerBookingDateTime,
   looksLikeFalseBookingConfirmation,
+  looksLikeFalseBookingReschedule,
+  shouldRunBookingOrchestrationBeforeReply,
 } from "@/lib/ai/booking-message-context";
 import {
   resolveAssistantFallbackReplyMessage,
@@ -215,7 +221,8 @@ async function buildFastBookingReplyContext(input: {
   conversationHistory?: ConversationTurn[];
 }): Promise<string> {
   if (
-    !isBookingRelatedTurn(input.clientMessage, input.conversationHistory)
+    !isBookingRelatedTurn(input.clientMessage, input.conversationHistory) &&
+    !isBookingManagementTurn(input.clientMessage, input.conversationHistory)
   ) {
     return "";
   }
@@ -924,7 +931,7 @@ export async function generateFastAssistantReply(input: {
   let preferredConfirmation: string | null = null;
   let actionsApplied: string[] = [];
 
-  const bookingTurn = isBookingRelatedTurn(
+  const bookingTurn = shouldRunBookingOrchestrationBeforeReply(
     prep.clientMessage,
     prep.conversationHistory,
   );
@@ -1078,12 +1085,15 @@ export async function generateFastAssistantReply(input: {
   let finalText = safeReply.text ?? fallbackText;
 
   const bookingConfirmed = hasBookingConfirmedAction(actionsApplied);
+  const bookingChanged = hasBookingRescheduleOrCancelAction(actionsApplied);
 
   if (
     bookingTurn &&
     prep.profile.canCreateCalendarEvent &&
     !bookingConfirmed &&
-    looksLikeFalseBookingConfirmation(finalText)
+    !bookingChanged &&
+    (looksLikeFalseBookingConfirmation(finalText) ||
+      looksLikeFalseBookingReschedule(finalText))
   ) {
     console.warn(
       "[auto-reply-pipeline] blocked unconfirmed booking confirmation",
@@ -1129,6 +1139,60 @@ export async function generateFastAssistantReply(input: {
     orchestrationCompleted,
     orchestrationAttempted,
   };
+}
+
+async function buildOrchestratorRuntimeNotes(input: {
+  admin: MessagingDbClient;
+  businessId: string;
+  channel: MessagingChannel;
+  clientMessage: string;
+  conversationHistory: ConversationTurn[];
+  contact: Awaited<ReturnType<typeof loadContactSnapshot>> | null;
+}): Promise<string | undefined> {
+  const parts: string[] = [];
+
+  if (input.channel === "website_forms") {
+    parts.push(
+      "A CRM order was already created from this website form submission. Do not plan create_order; focus on tasks, deals, follow-ups, and contact field updates.",
+    );
+  }
+
+  if (input.contact?.name?.trim()) {
+    const upcoming = await findUpcomingEventsForContact({
+      admin: input.admin,
+      businessId: input.businessId,
+      contactName: input.contact.name,
+      contactEmail: input.contact.email,
+      limit: 5,
+    });
+
+    if (upcoming.length > 0) {
+      parts.push(
+        "Upcoming calendar bookings for this contact (use eventId for cancel_calendar_event / reschedule_calendar_event):",
+      );
+      for (const event of upcoming) {
+        parts.push(
+          `- eventId:${event.id} | ${event.title} | ${event.startAt} → ${event.endAt}${event.isBooking ? " | booking" : ""}`,
+        );
+      }
+    }
+  }
+
+  if (
+    isBookingManagementTurn(input.clientMessage, input.conversationHistory)
+  ) {
+    parts.push(
+      "Customer wants to cancel or reschedule an existing booking. Plan cancel_calendar_event or reschedule_calendar_event with the eventId from the list above when present. Do NOT use create_calendar_event to move an existing booking. Do not tell the customer the booking is cancelled or moved unless that action is in the plan.",
+    );
+  }
+
+  if (isExplicitCustomerBookingDateTime(input.clientMessage)) {
+    parts.push(
+      "Customer gave an explicit date/time. Use that exact local datetime in startDateTime/endDateTime (business timezone). Never silently book a different day — if the slot is busy, plan nothing or offer alternatives in clientSummary.",
+    );
+  }
+
+  return parts.length > 0 ? parts.join("\n") : undefined;
 }
 
 /** Background: orchestrator + CRM + owner alert (+ optional follow-up to customer). */
@@ -1267,10 +1331,14 @@ export async function runAutoReplyBackgroundOrchestration(input: {
           .join("\n")
       : undefined;
   const memorySummary = conversationMemory?.aiSummary?.trim() || undefined;
-  const runtimeNotes =
-    input.channel === "website_forms"
-      ? "A CRM order was already created from this website form submission. Do not plan create_order; focus on tasks, deals, follow-ups, and contact field updates."
-      : undefined;
+  const runtimeNotes = await buildOrchestratorRuntimeNotes({
+    admin: input.admin,
+    businessId: input.businessId,
+    channel: input.channel,
+    clientMessage: input.clientMessage,
+    conversationHistory,
+    contact,
+  });
 
   const orchestrationResult = await runAutoReplyOrchestrator({
     businessId: input.businessId,

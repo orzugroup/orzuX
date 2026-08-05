@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasBookingConfirmedAction,
+  isBookingManagementTurn,
   isBookingRelatedTurn,
   looksLikeFalseBookingConfirmation,
+  looksLikeFalseBookingReschedule,
 } from "@/lib/ai/booking-message-context";
 import { normalizeOrchestratorPayload } from "@/lib/ai/normalize-orchestrator-response";
 import { orchestratorResponseSchema } from "@/types/ai-orchestrator.types";
@@ -20,6 +22,27 @@ describe("isBookingRelatedTurn", () => {
 
     expect(isBookingRelatedTurn("Мне подходит 14", history)).toBe(true);
     expect(isBookingRelatedTurn("14:00", history)).toBe(true);
+  });
+
+  it("detects explicit reschedule date/time", () => {
+    const history = [
+      {
+        role: "assistant" as const,
+        content: "На какое новое время и дату вы хотите перенести консультацию?",
+      },
+    ];
+
+    expect(isBookingRelatedTurn("на 8 августа на 14:00", history)).toBe(true);
+  });
+});
+
+describe("booking management turns", () => {
+  it("detects cancel booking phrasing", () => {
+    expect(
+      isBookingManagementTurn(
+        "Я хотел бы отметить бронирование я не хочу консультации",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -69,5 +92,13 @@ describe("booking confirmation guards", () => {
     expect(hasBookingConfirmedAction(["Booking confirmed — Tue 14:00"])).toBe(
       true,
     );
+  });
+
+  it("flags false reschedule claims", () => {
+    expect(
+      looksLikeFalseBookingReschedule(
+        "Ваше бронирование было перенесено на 8 августа в 14:00.",
+      ),
+    ).toBe(true);
   });
 });

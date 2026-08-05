@@ -483,7 +483,7 @@ export async function formatAvailabilityForAiPrompt(
   if (slots.length === 0) {
     return [
       "Live calendar availability: no open slots found in the next 7 days within business hours.",
-      "If the customer gives a specific date/time, still use create_calendar_event — the system will find the nearest free slot or suggest alternatives.",
+      "If the customer gives a specific date/time, still use create_calendar_event — if that exact slot is unavailable, report alternatives; do not auto-book another day unless the customer agrees.",
     ].join("\n");
   }
 

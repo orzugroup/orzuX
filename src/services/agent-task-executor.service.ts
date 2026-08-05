@@ -61,6 +61,7 @@ import {
 } from "@/lib/ai/data-collection";
 import { getConversationRepository } from "@/repositories/conversation.repository";
 import { canonicalPhoneNumber, phoneDigitsOnly } from "@/utils/whatsapp";
+import { isExplicitCustomerBookingDateTime } from "@/lib/ai/booking-message-context";
 
 type MessagingDbClient = SupabaseClient<Database>;
 
@@ -1783,7 +1784,9 @@ async function applyCreateCalendarEvent(
     bookingPageId: action.bookingPageId,
     formAnswers: action.formAnswers,
     clientMessage: idempotencyContext.clientMessage,
-    preferNearestSlot: true,
+    preferNearestSlot: !isExplicitCustomerBookingDateTime(
+      idempotencyContext.clientMessage,
+    ),
   });
 
   if (!bookingResult.success) {
