@@ -1,11 +1,10 @@
 import "server-only";
 
 import {
-  buildAssistantProfileCacheKey,
-  readCachedAssistantProfileRow,
-  writeCachedAssistantProfileRow,
-} from "@/lib/cache/ai-assistant-profile-cache";
-import { deleteRedisCacheKey } from "@/lib/cache/redis";
+  deleteRedisCacheKey,
+  getRedisCacheValue,
+  setRedisCacheValue,
+} from "@/lib/cache/redis";
 
 const PROFILE_CACHE_TTL_SECONDS = 5 * 60;
 const PROFILE_CACHE_PREFIX = "ai:assistant-profile:v1:";
