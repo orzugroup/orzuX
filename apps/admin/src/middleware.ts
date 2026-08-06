@@ -1,8 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const LOGIN_PATH = "/login";
-const DASHBOARD_PATH = "/dashboard";
+import {
+  ADMIN_DEFAULT_PATH,
+  ADMIN_LOGIN_PATH,
+  MFA_ENROLL_PATH,
+  MFA_VERIFY_PATH,
+  resolveAdminMfaGate,
+} from "@/lib/mfa";
 
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -51,7 +56,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isLogin = pathname === LOGIN_PATH;
+  const isLogin = pathname === ADMIN_LOGIN_PATH;
+  const isMfaEnroll =
+    pathname === MFA_ENROLL_PATH || pathname.startsWith(`${MFA_ENROLL_PATH}/`);
+  const isMfaVerify =
+    pathname === MFA_VERIFY_PATH || pathname.startsWith(`${MFA_VERIFY_PATH}/`);
 
   if (!user) {
     if (isLogin) {
@@ -59,7 +68,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = LOGIN_PATH;
+    redirectUrl.pathname = ADMIN_LOGIN_PATH;
     redirectUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(redirectUrl);
   }
@@ -74,16 +83,55 @@ export async function middleware(request: NextRequest) {
     await supabase.auth.signOut();
 
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = LOGIN_PATH;
+    redirectUrl.pathname = ADMIN_LOGIN_PATH;
     redirectUrl.searchParams.set("error", "forbidden");
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isLogin || pathname === "/") {
+  const [{ data: aal }, { data: factors }] = await Promise.all([
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+    supabase.auth.mfa.listFactors(),
+  ]);
+
+  const verifiedTotpCount = (factors?.totp ?? []).filter(
+    (factor) => factor.status === "verified",
+  ).length;
+
+  const gate = resolveAdminMfaGate({
+    currentLevel: aal?.currentLevel,
+    verifiedTotpCount,
+  });
+
+  if (gate.kind === "enroll" && !isMfaEnroll) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = DASHBOARD_PATH;
+    redirectUrl.pathname = MFA_ENROLL_PATH;
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
+  }
+
+  if (gate.kind === "verify" && !isMfaVerify) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = MFA_VERIFY_PATH;
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (
+    gate.kind === "allow" &&
+    (isLogin || isMfaEnroll || isMfaVerify || pathname === "/")
+  ) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = ADMIN_DEFAULT_PATH;
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (gate.kind === "enroll" && isMfaEnroll) {
+    return response;
+  }
+
+  if (gate.kind === "verify" && isMfaVerify) {
+    return response;
   }
 
   return response;

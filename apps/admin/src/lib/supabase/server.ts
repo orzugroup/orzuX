@@ -63,7 +63,8 @@ export function createServiceRoleClient() {
   });
 }
 
-export async function requirePlatformAdmin() {
+/** Authenticated platform admin identity (password/session). MFA may still be pending. */
+export async function requirePlatformAdminIdentity() {
   const supabase = await createAdminSupabaseServerClient();
   const {
     data: { user },
@@ -88,4 +89,36 @@ export async function requirePlatformAdmin() {
     user,
     role: adminRow.role as PlatformAdminRole,
   };
+}
+
+/** Platform admin with completed MFA (AAL2). Required for privileged admin actions. */
+export async function requirePlatformAdmin() {
+  const identity = await requirePlatformAdminIdentity();
+  const { data: aal, error } =
+    await identity.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (aal?.currentLevel !== "aal2") {
+    throw new Error("Multi-factor authentication required");
+  }
+
+  const { data: factors, error: factorsError } =
+    await identity.supabase.auth.mfa.listFactors();
+
+  if (factorsError) {
+    throw new Error(factorsError.message);
+  }
+
+  const hasVerifiedTotp = (factors.totp ?? []).some(
+    (factor) => factor.status === "verified",
+  );
+
+  if (!hasVerifiedTotp) {
+    throw new Error("Multi-factor authentication required");
+  }
+
+  return identity;
 }

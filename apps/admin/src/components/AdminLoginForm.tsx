@@ -5,6 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2Icon, ShieldIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  ADMIN_DEFAULT_PATH,
+  MFA_ENROLL_PATH,
+  MFA_VERIFY_PATH,
+  resolveAdminMfaGate,
+} from "@/lib/mfa";
 import { createAdminSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function AdminLoginForm() {
@@ -30,8 +36,34 @@ export function AdminLoginForm() {
         return;
       }
 
-      const next = searchParams.get("next") || "/settings/secrets";
-      router.replace(next);
+      const [{ data: aal }, { data: factors }] = await Promise.all([
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        supabase.auth.mfa.listFactors(),
+      ]);
+
+      const verifiedTotpCount = (factors?.totp ?? []).filter(
+        (factor) => factor.status === "verified",
+      ).length;
+
+      const gate = resolveAdminMfaGate({
+        currentLevel: aal?.currentLevel,
+        verifiedTotpCount,
+      });
+
+      if (gate.kind === "enroll") {
+        router.replace(MFA_ENROLL_PATH);
+        router.refresh();
+        return;
+      }
+
+      if (gate.kind === "verify") {
+        router.replace(MFA_VERIFY_PATH);
+        router.refresh();
+        return;
+      }
+
+      const next = searchParams.get("next") || ADMIN_DEFAULT_PATH;
+      router.replace(next.startsWith("/") ? next : ADMIN_DEFAULT_PATH);
       router.refresh();
     } finally {
       setIsSubmitting(false);
@@ -50,7 +82,7 @@ export function AdminLoginForm() {
           <div>
             <h1 className="text-lg font-semibold">OrzuX Admin</h1>
             <p className="text-sm text-muted-foreground">
-              Только для платформенных администраторов
+              Только для платформенных администраторов · MFA обязателен
             </p>
           </div>
         </div>

@@ -123,6 +123,15 @@ export const SECURITY_CATEGORIES: SecurityCategory[] = [
         reference: "apps/admin/src/middleware.ts, lib/supabase/server.ts",
       },
       {
+        name: "MFA (TOTP) для администраторов платформы (CASA 3.3.1)",
+        purpose:
+          "Административные интерфейсы недоступны только по паролю: требуется второй фактор (authenticator app).",
+        how: "После входа middleware требует verified TOTP и сессию AAL2 (/mfa/enroll, /mfa/verify). requirePlatformAdmin() повторяет проверку на серверных действиях.",
+        status: "active",
+        reference:
+          "apps/admin/src/middleware.ts, apps/admin/src/lib/mfa.ts, apps/admin/src/features/mfa",
+      },
+      {
         name: "Ревокация OAuth-токенов при отключении",
         purpose:
           "При отключении Google/Gmail refresh-токен отзывается, а не остаётся жить.",
@@ -270,11 +279,6 @@ export const SECURITY_RECOMMENDATIONS: SecurityRecommendation[] = [
     title: "Заголовки безопасности (CSP, HSTS)",
     detail:
       "Добавить строгие HTTP-заголовки (Content-Security-Policy, HSTS, X-Frame-Options) для защиты от XSS и clickjacking.",
-  },
-  {
-    title: "Двухфакторная аутентификация (2FA)",
-    detail:
-      "Включить 2FA для администраторов платформы и предложить её бизнес-владельцам.",
   },
   {
     title: "Плановая ротация ключей",
