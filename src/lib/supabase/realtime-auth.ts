@@ -1,52 +1,78 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  clearAccessTokenCache,
+  fetchAccessToken,
+} from "@/lib/supabase/access-token-client";
 import type { Database } from "@/types/database.types";
 
 let prepareGeneration = 0;
 let preparePromise: Promise<boolean> | null = null;
 let appliedAuthToken: string | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearRefreshTimer(): void {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+function scheduleAccessTokenRefresh(
+  supabase: SupabaseClient<Database>,
+  expiresAtMs: number,
+): void {
+  clearRefreshTimer();
+
+  const delayMs = Math.max(5_000, expiresAtMs - Date.now() - 60_000);
+
+  refreshTimer = setTimeout(() => {
+    clearAccessTokenCache();
+    invalidateSupabaseRealtime();
+    void prepareSupabaseRealtime(supabase);
+  }, delayMs);
+}
 
 export async function ensureSupabaseRealtimeAuth(
   supabase: SupabaseClient<Database>,
 ): Promise<boolean> {
-  const { data, error } = await supabase.auth.getSession();
+  const payload = await fetchAccessToken();
 
-  if (error || !data.session?.access_token) {
+  if (!payload?.accessToken) {
     return false;
   }
 
-  await supabase.realtime.setAuth(data.session.access_token);
+  await supabase.realtime.setAuth(payload.accessToken);
+  scheduleAccessTokenRefresh(supabase, payload.expiresAtMs);
   return true;
 }
 
 /**
  * Sets JWT on the Realtime socket and reconnects when the token changes.
- * Avoids disconnecting on every subscription — that was dropping active channels.
+ * Access token comes from the server (HttpOnly session); never from document.cookie.
  */
 export async function prepareSupabaseRealtime(
   supabase: SupabaseClient<Database>,
 ): Promise<boolean> {
   const generation = ++prepareGeneration;
-  const authed = await ensureSupabaseRealtimeAuth(supabase);
+  const payload = await fetchAccessToken();
 
-  if (!authed || generation !== prepareGeneration) {
+  if (!payload?.accessToken || generation !== prepareGeneration) {
     return false;
   }
 
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token ?? null;
-
-  if (!token) {
-    return false;
-  }
+  const token = payload.accessToken;
 
   if (token === appliedAuthToken) {
+    scheduleAccessTokenRefresh(supabase, payload.expiresAtMs);
     return true;
   }
 
+  await supabase.realtime.setAuth(token);
   supabase.realtime.disconnect();
   supabase.realtime.connect();
   appliedAuthToken = token;
+  scheduleAccessTokenRefresh(supabase, payload.expiresAtMs);
 
   return true;
 }
@@ -67,33 +93,46 @@ export function invalidateSupabaseRealtime(): void {
   prepareGeneration += 1;
   preparePromise = null;
   appliedAuthToken = null;
+  clearRefreshTimer();
 }
 
-let authRefreshBound = false;
+/**
+ * Disconnect Realtime and drop in-memory access token (call before logout).
+ */
+export function teardownSupabaseRealtime(
+  supabase: SupabaseClient<Database> | null,
+): void {
+  invalidateSupabaseRealtime();
+  clearAccessTokenCache();
+
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    supabase.realtime.setAuth("");
+    supabase.realtime.disconnect();
+  } catch {
+    // Best-effort cleanup before sign-out redirect.
+  }
+}
 
 /**
- * Registers a single global auth-state listener for Realtime JWT refresh.
- * Call once from dashboard bootstrap; subscription hooks only need waitForSupabaseRealtime.
+ * Polling refresh when the tab is visible — browser has no cookie session events.
  */
 export function bindSupabaseRealtimeAuthRefresh(
   supabase: SupabaseClient<Database>,
 ): () => void {
-  if (authRefreshBound) {
-    return () => {};
-  }
-
-  authRefreshBound = true;
-
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    invalidateSupabaseRealtime();
-
-    if (session?.access_token) {
+  const onVisible = () => {
+    if (document.visibilityState === "visible") {
       void prepareSupabaseRealtime(supabase);
     }
-  });
+  };
+
+  document.addEventListener("visibilitychange", onVisible);
 
   return () => {
-    data.subscription.unsubscribe();
-    authRefreshBound = false;
+    document.removeEventListener("visibilitychange", onVisible);
+    clearRefreshTimer();
   };
 }

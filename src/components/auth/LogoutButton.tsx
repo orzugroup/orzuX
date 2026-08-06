@@ -5,6 +5,7 @@ import { useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { signOutAction } from "@/features/auth/actions/sign-out";
+import { prepareBrowserSignOut } from "@/lib/supabase/client-sign-out";
 import { cn } from "@/lib/utils";
 
 type LogoutButtonProps = {
@@ -29,6 +30,7 @@ export function LogoutButton({
       disabled={isPending}
       onClick={() => {
         startTransition(async () => {
+          prepareBrowserSignOut();
           await signOutAction();
         });
       }}

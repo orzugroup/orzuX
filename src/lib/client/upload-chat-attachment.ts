@@ -1,10 +1,8 @@
 "use client";
 
 import { CHAT_ATTACHMENTS_BUCKET } from "@/features/chats/chat-attachments";
-import {
-  createClientIfConfigured,
-  getBrowserSupabaseConfig,
-} from "@/lib/supabase/client";
+import { fetchAccessToken } from "@/lib/supabase/access-token-client";
+import { getBrowserSupabaseConfig } from "@/lib/supabase/client";
 
 export type ChatUploadPhase = "uploading";
 
@@ -170,77 +168,32 @@ export function uploadToPresignedUrl(
   });
 }
 
-async function uploadViaSupabaseClient(
-  body: File | Blob,
-  path: string,
-  bucket: string,
-  upsert: boolean,
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientIfConfigured();
-
-  if (!supabase) {
-    return { success: false, error: "Supabase is not configured." };
-  }
-
-  const contentType =
-    body instanceof File
-      ? body.type || "application/octet-stream"
-      : body.type || "application/octet-stream";
-
-  const { error } = await supabase.storage.from(bucket).upload(path, body, {
-    contentType,
-    upsert,
-  });
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  return { success: true };
-}
-
 async function uploadStorageObject(
   body: File | Blob,
   path: string,
   options: UploadChatAttachmentOptions = {},
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientIfConfigured();
   const config = getBrowserSupabaseConfig();
 
-  if (!supabase || !config) {
+  if (!config) {
     return { success: false, error: "Supabase is not configured." };
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  // Access token from server (HttpOnly session) — never from document.cookie.
+  const tokenPayload = await fetchAccessToken();
 
-  if (!session?.access_token) {
+  if (!tokenPayload?.accessToken) {
     return { success: false, error: "Not authenticated." };
   }
 
   const bucket = options.bucket ?? CHAT_ATTACHMENTS_BUCKET;
   const upsert = options.upsert ?? false;
+  const url = buildStorageUploadUrl(bucket, path, config.url);
 
-  if (options.onProgress) {
-    const url = buildStorageUploadUrl(bucket, path, config.url);
-    const xhrResult = await uploadViaXhr(
-      body,
-      url,
-      session.access_token,
-      config.anonKey,
-      {
-        upsert,
-        onProgress: options.onProgress,
-      },
-    );
-
-    if (xhrResult.success) {
-      return xhrResult;
-    }
-  }
-
-  return uploadViaSupabaseClient(body, path, bucket, upsert);
+  return uploadViaXhr(body, url, tokenPayload.accessToken, config.anonKey, {
+    upsert,
+    onProgress: options.onProgress,
+  });
 }
 
 export async function uploadChatAttachmentDirect(

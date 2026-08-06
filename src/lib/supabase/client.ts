@@ -26,22 +26,31 @@ export function getBrowserSupabaseConfig(): {
   return { url, anonKey };
 }
 
-export function createClient() {
-  return createBrowserClient<Database>(
-    getSupabaseUrl(),
-    getSupabaseAnonKey(),
-    {
-      cookieOptions: {
-        path: "/",
-        sameSite: "lax",
-        // Browser cannot set HttpOnly; Secure is set by the browser on HTTPS.
-        secure:
-          typeof window !== "undefined"
-            ? window.location.protocol === "https:"
-            : true,
+/**
+ * Browser client does not read/write auth cookies.
+ * Session refresh tokens live in HttpOnly cookies (server/middleware only).
+ * Realtime auth uses GET /api/auth/access-token + realtime.setAuth.
+ */
+function createBrowserSupabaseClient(url: string, anonKey: string) {
+  return createBrowserClient<Database>(url, anonKey, {
+    cookies: {
+      getAll() {
+        return [];
+      },
+      setAll() {
+        // No-op: never persist session tokens to document.cookie.
       },
     },
-  );
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
+export function createClient() {
+  return createBrowserSupabaseClient(getSupabaseUrl(), getSupabaseAnonKey());
 }
 
 /** Safe for client hooks — returns null when public Supabase env is not configured. */
@@ -53,16 +62,7 @@ export function createClientIfConfigured() {
   }
 
   if (!browserClient) {
-    browserClient = createBrowserClient<Database>(config.url, config.anonKey, {
-      cookieOptions: {
-        path: "/",
-        sameSite: "lax",
-        secure:
-          typeof window !== "undefined"
-            ? window.location.protocol === "https:"
-            : true,
-      },
-    });
+    browserClient = createBrowserSupabaseClient(config.url, config.anonKey);
   }
 
   return browserClient;

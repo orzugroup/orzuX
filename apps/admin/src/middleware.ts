@@ -22,6 +22,7 @@ export async function middleware(request: NextRequest) {
       path: "/",
       sameSite: "lax",
       secure: secureCookie,
+      httpOnly: true,
     },
     cookies: {
       getAll() {
@@ -37,6 +38,7 @@ export async function middleware(request: NextRequest) {
             ...options,
             path: options?.path ?? "/",
             sameSite: options?.sameSite ?? "lax",
+            httpOnly: true,
             ...(secureCookie ? { secure: true } : {}),
           });
         });

@@ -32,6 +32,7 @@ import {
 import { usePlatformSupport } from "@/contexts/platform-support-context";
 import { DASHBOARD_ROUTES } from "@/constants/routes";
 import { signOutAction } from "@/features/auth/actions/sign-out";
+import { prepareBrowserSignOut } from "@/lib/supabase/client-sign-out";
 import {
   ACCOUNT_SETTINGS_MESSAGES,
   SETTINGS_MESSAGES,
@@ -189,6 +190,7 @@ export function UserProfileSection({ userProfile }: UserProfileSectionProps) {
               onSelect={(event) => {
                 event.preventDefault();
                 startSignOutTransition(async () => {
+                  prepareBrowserSignOut();
                   await signOutAction();
                 });
               }}

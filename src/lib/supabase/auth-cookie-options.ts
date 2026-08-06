@@ -1,12 +1,12 @@
 import type { CookieOptions } from "@supabase/ssr";
 
 /**
- * Auth cookie defaults for CASA / production HTTPS.
+ * Auth cookie defaults for CASA session security.
  *
- * - `secure: true` on Vercel/production so session cookies are HTTPS-only (2.3.1).
- * - `httpOnly` stays false: @supabase/ssr browser client + Realtime read the
- *   session from document.cookie; HttpOnly would break dashboard Realtime/RLS
- *   client queries unless all auth is moved server-side.
+ * - `secure: true` on Vercel/production (HTTPS-only).
+ * - `httpOnly: true` so refresh/session cookies are not readable by JS.
+ *   Browser Realtime uses a short-lived access token from GET /api/auth/access-token
+ *   via realtime.setAuth — never from document.cookie.
  */
 export function isSecureAuthCookieEnvironment(): boolean {
   return (
@@ -21,11 +21,11 @@ export function getSupabaseAuthCookieOptions(): CookieOptions {
     path: "/",
     sameSite: "lax",
     secure: isSecureAuthCookieEnvironment(),
-    httpOnly: false,
+    httpOnly: true,
   };
 }
 
-/** Merge Supabase-provided options with enforced production Secure flag. */
+/** Merge Supabase-provided options with enforced Secure + HttpOnly. */
 export function mergeAuthCookieOptions(
   options: CookieOptions | undefined,
 ): CookieOptions {
@@ -35,6 +35,7 @@ export function mergeAuthCookieOptions(
     ...options,
     path: options?.path ?? defaults.path,
     sameSite: options?.sameSite ?? defaults.sameSite,
+    httpOnly: true,
   };
 
   if (isSecureAuthCookieEnvironment()) {

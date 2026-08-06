@@ -23,6 +23,7 @@ export async function createAdminSupabaseServerClient() {
       path: "/",
       sameSite: "lax",
       secure: secureCookie,
+      httpOnly: true,
     },
     cookies: {
       getAll() {
@@ -35,6 +36,7 @@ export async function createAdminSupabaseServerClient() {
               ...options,
               path: options?.path ?? "/",
               sameSite: options?.sameSite ?? "lax",
+              httpOnly: true,
               ...(secureCookie ? { secure: true } : {}),
             });
           });
