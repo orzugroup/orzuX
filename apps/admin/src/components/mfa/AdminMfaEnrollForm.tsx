@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
+import { adminSignOutAction } from "@/features/auth/sign-out-action";
 import {
   confirmTotpEnrollmentAction,
   startTotpEnrollmentAction,
 } from "@/features/mfa/actions";
 import { ADMIN_DEFAULT_PATH } from "@/lib/mfa";
-import { createAdminSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function AdminMfaEnrollForm() {
   const router = useRouter();
@@ -74,13 +74,6 @@ export function AdminMfaEnrollForm() {
       router.replace(ADMIN_DEFAULT_PATH);
       router.refresh();
     });
-  }
-
-  async function handleSignOut() {
-    const supabase = createAdminSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    router.replace("/login");
-    router.refresh();
   }
 
   if (loadingEnrollment) {
@@ -155,7 +148,11 @@ export function AdminMfaEnrollForm() {
 
       <button
         type="button"
-        onClick={() => void handleSignOut()}
+        onClick={() => {
+          startTransition(async () => {
+            await adminSignOutAction();
+          });
+        }}
         className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
       >
         Sign out
