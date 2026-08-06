@@ -30,6 +30,17 @@ export function createClient() {
   return createBrowserClient<Database>(
     getSupabaseUrl(),
     getSupabaseAnonKey(),
+    {
+      cookieOptions: {
+        path: "/",
+        sameSite: "lax",
+        // Browser cannot set HttpOnly; Secure is set by the browser on HTTPS.
+        secure:
+          typeof window !== "undefined"
+            ? window.location.protocol === "https:"
+            : true,
+      },
+    },
   );
 }
 
@@ -42,7 +53,16 @@ export function createClientIfConfigured() {
   }
 
   if (!browserClient) {
-    browserClient = createBrowserClient<Database>(config.url, config.anonKey);
+    browserClient = createBrowserClient<Database>(config.url, config.anonKey, {
+      cookieOptions: {
+        path: "/",
+        sameSite: "lax",
+        secure:
+          typeof window !== "undefined"
+            ? window.location.protocol === "https:"
+            : true,
+      },
+    });
   }
 
   return browserClient;

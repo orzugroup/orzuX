@@ -15,7 +15,15 @@ export async function createAdminSupabaseServerClient() {
     );
   }
 
+  const secureCookie =
+    process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+
   return createSsrClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      path: "/",
+      sameSite: "lax",
+      secure: secureCookie,
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -23,7 +31,12 @@ export async function createAdminSupabaseServerClient() {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, {
+              ...options,
+              path: options?.path ?? "/",
+              sameSite: options?.sameSite ?? "lax",
+              ...(secureCookie ? { secure: true } : {}),
+            });
           });
         } catch {
           // Called from a Server Component — middleware handles refresh.

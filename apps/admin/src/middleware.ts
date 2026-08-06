@@ -14,7 +14,15 @@ export async function middleware(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
+  const secureCookie =
+    process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      path: "/",
+      sameSite: "lax",
+      secure: secureCookie,
+    },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -25,7 +33,12 @@ export async function middleware(request: NextRequest) {
         });
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
+          response.cookies.set(name, value, {
+            ...options,
+            path: options?.path ?? "/",
+            sameSite: options?.sameSite ?? "lax",
+            ...(secureCookie ? { secure: true } : {}),
+          });
         });
       },
     },

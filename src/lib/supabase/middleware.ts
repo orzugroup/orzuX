@@ -7,6 +7,10 @@ import {
   getSupabaseUrl,
   hasSupabaseEnv,
 } from "@/lib/env.edge";
+import {
+  getSupabaseAuthCookieOptions,
+  mergeAuthCookieOptions,
+} from "@/lib/supabase/auth-cookie-options";
 import type { Database } from "@/types/database.types";
 import { isAuthEntryRoute, isProtectedRoute } from "@/utils/auth-routes";
 
@@ -21,6 +25,7 @@ export async function updateSession(request: NextRequest) {
     getSupabaseUrl(),
     getSupabaseAnonKey(),
     {
+      cookieOptions: getSupabaseAuthCookieOptions(),
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -33,7 +38,11 @@ export async function updateSession(request: NextRequest) {
           supabaseResponse = NextResponse.next({ request });
 
           cookiesToSet.forEach(({ name, value, options }) => {
-            supabaseResponse.cookies.set(name, value, options);
+            supabaseResponse.cookies.set(
+              name,
+              value,
+              mergeAuthCookieOptions(options),
+            );
           });
         },
       },
