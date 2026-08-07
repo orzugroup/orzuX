@@ -170,11 +170,15 @@ export function InternetPhoneActivatePanel({
                         Open live preview
                       </a>
                     </Button>
-                    <Button asChild variant="secondary">
-                      <a href="/api/internet-phone/pdf">
-                        <DownloadIcon className="size-4" />
-                        {INTERNET_PHONE_MESSAGES.downloadPdf}
-                      </a>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        window.location.assign("/api/internet-phone/pdf");
+                      }}
+                    >
+                      <DownloadIcon className="size-4" />
+                      {INTERNET_PHONE_MESSAGES.downloadPdf}
                     </Button>
                   </div>
                 </div>
