@@ -1,5 +1,4 @@
 import {
-  AudioFrame,
   AudioSource,
   AudioStream,
   LocalAudioTrack,
@@ -8,9 +7,11 @@ import {
   TrackKind,
   TrackPublishOptions,
   TrackSource,
+  type RemoteParticipant,
   type RemoteTrack,
 } from "@livekit/rtc-node";
 
+import { LiveKitAudioOut, SAMPLE_RATE, copyPcm16 } from "./audio-out.js";
 import {
   appendVoiceStreamTurn,
   fetchVoiceStreamContext,
@@ -22,8 +23,8 @@ import { startDeepgramPcmLive, type DeepgramPcmSession } from "./deepgram-pcm.js
 import { streamElevenLabsPcm } from "./elevenlabs-pcm.js";
 import type { RuntimeAiKeyProvider } from "./runtime-keys.js";
 
-const SAMPLE_RATE = 16_000;
-const FRAME_SAMPLES = 320; // 20ms @ 16kHz
+/** Ignore echo / barge-in for a short window after AI finishes speaking. */
+const ECHO_GUARD_MS = 700;
 const HUMAN_REQUEST_RE =
   /\b(human|agent|manager|operator|person|сотрудник|менеджер|человек|оператор)\b/i;
 
@@ -41,15 +42,15 @@ export class LiveKitVoiceAgentSession {
   private room: Room | null = null;
   private audioSource: AudioSource | null = null;
   private localTrack: LocalAudioTrack | null = null;
+  private audioOut: LiveKitAudioOut | null = null;
   private deepgram: DeepgramPcmSession | null = null;
   private context: VoiceStreamContext | null = null;
   private muted = false;
   private closed = false;
-  private speaking = false;
   private turnInFlight = false;
   private ttsAbort: AbortController | null = null;
-  private pcmQueue: Int16Array[] = [];
-  private pumpTimer: NodeJS.Timeout | null = null;
+  private echoGuardUntil = 0;
+  private visitorTrackActive = false;
 
   constructor(
     private readonly payload: JoinPayload,
@@ -63,9 +64,12 @@ export class LiveKitVoiceAgentSession {
     const room = new Room();
     this.room = room;
 
-    room.on(RoomEvent.TrackSubscribed, (track) => {
-      void this.handleTrackSubscribed(track);
-    });
+    room.on(
+      RoomEvent.TrackSubscribed,
+      (track, _publication, participant) => {
+        void this.handleTrackSubscribed(track, participant);
+      },
+    );
 
     room.on(RoomEvent.Disconnected, () => {
       void this.shutdown("disconnected");
@@ -89,6 +93,7 @@ export class LiveKitVoiceAgentSession {
     });
 
     this.audioSource = new AudioSource(SAMPLE_RATE, 1);
+    this.audioOut = new LiveKitAudioOut(this.audioSource);
     this.localTrack = LocalAudioTrack.createAudioTrack(
       "ai-voice",
       this.audioSource,
@@ -102,7 +107,6 @@ export class LiveKitVoiceAgentSession {
     });
 
     await room.localParticipant?.publishTrack(this.localTrack, options);
-    this.startSilencePump();
 
     await notifyInternetPhoneLifecycle({
       appUrl: this.appUrl,
@@ -140,9 +144,9 @@ export class LiveKitVoiceAgentSession {
         void this.handleUserTranscript(text);
       },
       onSpeechStarted: () => {
-        if (this.speaking) {
-          this.interruptSpeech();
-        }
+        // Do not barge-in on speaker echo while / just after AI talks.
+        if (this.shouldIgnoreInboundSpeech()) return;
+        this.interruptSpeech();
       },
       onError: (message) => {
         console.warn("[livekit-voice-agent] deepgram error", message);
@@ -195,11 +199,8 @@ export class LiveKitVoiceAgentSession {
     this.interruptSpeech();
     this.deepgram?.close();
     this.deepgram = null;
-
-    if (this.pumpTimer) {
-      clearInterval(this.pumpTimer);
-      this.pumpTimer = null;
-    }
+    this.audioOut?.close();
+    this.audioOut = null;
 
     try {
       await this.localTrack?.close();
@@ -232,9 +233,38 @@ export class LiveKitVoiceAgentSession {
     this.onClosed?.(this.payload.callId);
   }
 
-  private async handleTrackSubscribed(track: RemoteTrack): Promise<void> {
+  private shouldIgnoreInboundSpeech(): boolean {
+    if (this.audioOut?.isSpeaking) return true;
+    if (Date.now() < this.echoGuardUntil) return true;
+    return false;
+  }
+
+  private isVisitorParticipant(participant: RemoteParticipant | undefined): boolean {
+    const identity = participant?.identity ?? "";
+    return identity.startsWith("visitor_");
+  }
+
+  private async handleTrackSubscribed(
+    track: RemoteTrack,
+    participant: RemoteParticipant,
+  ): Promise<void> {
     if (this.closed || this.muted) return;
     if (track.kind !== TrackKind.KIND_AUDIO) return;
+
+    // Only listen to the customer mic — ignore staff/monitor tracks for STT.
+    if (!this.isVisitorParticipant(participant)) {
+      console.info(
+        "[livekit-voice-agent] skip non-visitor audio",
+        participant.identity,
+      );
+      return;
+    }
+
+    if (this.visitorTrackActive) {
+      // Avoid double-subscribing the same caller track.
+      return;
+    }
+    this.visitorTrackActive = true;
 
     const stream = new AudioStream(track, SAMPLE_RATE, 1);
     const reader = stream.getReader();
@@ -243,8 +273,13 @@ export class LiveKitVoiceAgentSession {
       while (!this.closed && !this.muted) {
         const { done, value } = await reader.read();
         if (done || !value) break;
-        if (this.speaking) continue;
-        this.deepgram?.sendPcm(value.data);
+
+        if (this.shouldIgnoreInboundSpeech()) {
+          continue;
+        }
+
+        // Copy before sending — LiveKit may reuse frame buffers.
+        this.deepgram?.sendPcm(copyPcm16(value.data));
       }
     } catch (error) {
       console.warn(
@@ -252,12 +287,15 @@ export class LiveKitVoiceAgentSession {
         error instanceof Error ? error.message : "unknown",
       );
     } finally {
+      this.visitorTrackActive = false;
       reader.releaseLock();
     }
   }
 
   private async handleUserTranscript(text: string): Promise<void> {
     if (this.closed || this.muted || this.turnInFlight) return;
+    if (this.shouldIgnoreInboundSpeech()) return;
+
     const cleaned = text.trim();
     if (!cleaned) return;
 
@@ -272,7 +310,6 @@ export class LiveKitVoiceAgentSession {
         });
       }
 
-      // Reply API persists user+assistant turns in voice_call_sessions.
       const reply = await requestVoiceStreamReply({
         appUrl: this.appUrl,
         secret: this.secret,
@@ -304,17 +341,16 @@ export class LiveKitVoiceAgentSession {
   private interruptSpeech(): void {
     this.ttsAbort?.abort();
     this.ttsAbort = null;
-    this.speaking = false;
-    this.pcmQueue = [];
+    this.audioOut?.clear();
+    this.echoGuardUntil = Date.now() + ECHO_GUARD_MS;
   }
 
   private async speak(text: string): Promise<void> {
-    if (this.closed || this.muted || !this.context || !this.audioSource) return;
+    if (this.closed || this.muted || !this.context || !this.audioOut) return;
 
     this.interruptSpeech();
     const abort = new AbortController();
     this.ttsAbort = abort;
-    this.speaking = true;
 
     try {
       for await (const samples of streamElevenLabsPcm({
@@ -325,18 +361,10 @@ export class LiveKitVoiceAgentSession {
         abortSignal: abort.signal,
       })) {
         if (abort.signal.aborted || this.muted) break;
-        this.enqueuePcm(samples);
+        this.audioOut.enqueue(samples);
       }
 
-      // Wait for queued audio to drain.
-      while (
-        this.pcmQueue.length > 0 &&
-        !abort.signal.aborted &&
-        !this.muted &&
-        !this.closed
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
+      await this.audioOut.waitUntilDrained(abort.signal);
     } catch (error) {
       if (!abort.signal.aborted) {
         console.error(
@@ -348,42 +376,7 @@ export class LiveKitVoiceAgentSession {
       if (this.ttsAbort === abort) {
         this.ttsAbort = null;
       }
-      this.speaking = false;
+      this.echoGuardUntil = Date.now() + ECHO_GUARD_MS;
     }
-  }
-
-  private enqueuePcm(samples: Int16Array): void {
-    let offset = 0;
-    while (offset < samples.length) {
-      const end = Math.min(offset + FRAME_SAMPLES, samples.length);
-      this.pcmQueue.push(samples.subarray(offset, end));
-      offset = end;
-    }
-  }
-
-  private startSilencePump(): void {
-    const silence = new Int16Array(FRAME_SAMPLES);
-
-    this.pumpTimer = setInterval(() => {
-      if (!this.audioSource || this.closed) return;
-
-      const next = this.pcmQueue.shift() ?? silence;
-      const frameSamples =
-        next.length >= FRAME_SAMPLES
-          ? next.subarray(0, FRAME_SAMPLES)
-          : (() => {
-              const padded = new Int16Array(FRAME_SAMPLES);
-              padded.set(next);
-              return padded;
-            })();
-
-      try {
-        void this.audioSource.captureFrame(
-          new AudioFrame(frameSamples, SAMPLE_RATE, 1, FRAME_SAMPLES),
-        );
-      } catch {
-        // ignore frame capture races during teardown
-      }
-    }, 20);
   }
 }

@@ -99,8 +99,12 @@ export function startDeepgramPcmLive(input: {
 
   return {
     sendPcm(pcm) {
-      if (closed) return;
-      const bytes = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+      if (closed || pcm.length === 0) return;
+      // Own the bytes — never send a shared LiveKit frame buffer view.
+      const bytes = Buffer.alloc(pcm.length * 2);
+      for (let i = 0; i < pcm.length; i += 1) {
+        bytes.writeInt16LE(pcm[i] ?? 0, i * 2);
+      }
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(bytes);
       } else {

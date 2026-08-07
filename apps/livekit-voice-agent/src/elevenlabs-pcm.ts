@@ -1,3 +1,5 @@
+import { pcmFromBytes } from "./audio-out.js";
+
 export async function* streamElevenLabsPcm(input: {
   apiKey: string;
   voiceId: string;
@@ -41,7 +43,8 @@ export async function* streamElevenLabsPcm(input: {
 
   while (!input.abortSignal.aborted) {
     const { done, value } = await reader.read();
-    if (done || !value) break;
+    if (done) break;
+    if (!value) continue;
 
     const chunk = Buffer.concat([leftover, Buffer.from(value)]);
     const usable = chunk.byteLength - (chunk.byteLength % 2);
@@ -50,13 +53,11 @@ export async function* streamElevenLabsPcm(input: {
       continue;
     }
 
-    const pcmBuffer = chunk.subarray(0, usable);
-    leftover = chunk.subarray(usable);
-    const samples = new Int16Array(
-      pcmBuffer.buffer,
-      pcmBuffer.byteOffset,
-      pcmBuffer.byteLength / 2,
-    );
-    yield samples;
+    const pcmBytes = chunk.subarray(0, usable);
+    leftover = Buffer.from(chunk.subarray(usable));
+    const samples = pcmFromBytes(pcmBytes);
+    if (samples.length > 0) {
+      yield samples;
+    }
   }
 }
