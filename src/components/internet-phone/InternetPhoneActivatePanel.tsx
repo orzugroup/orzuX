@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { IntegrationCopyField } from "@/components/integrations/IntegrationCopyField";
 import { IntegrationDangerZone } from "@/components/integrations/IntegrationDangerZone";
+import { InternetPhoneLiveCallsPanel } from "@/components/internet-phone/InternetPhoneLiveCallsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ import type {
 type InternetPhoneActivatePanelProps = {
   connection: InternetPhoneConnectionData | null;
   hasBusiness: boolean;
+  businessId?: string | null;
   config: InternetPhoneConnectConfig;
   embeddedInHub?: boolean;
 };
@@ -38,6 +40,7 @@ type InternetPhoneActivatePanelProps = {
 export function InternetPhoneActivatePanel({
   connection,
   hasBusiness,
+  businessId = null,
   config,
   embeddedInHub = false,
 }: InternetPhoneActivatePanelProps) {
@@ -120,7 +123,9 @@ export function InternetPhoneActivatePanel({
             <p className="text-sm text-muted-foreground">
               {INTERNET_PHONE_MESSAGES.notConfigured}
             </p>
-          ) : !connected ? (
+          ) : null}
+
+          {hasBusiness && config.isConfigured && !connected ? (
             <Button type="button" onClick={onConnect} disabled={isPending}>
               {isPending ? (
                 <Loader2Icon className="size-4 animate-spin" />
@@ -129,8 +134,20 @@ export function InternetPhoneActivatePanel({
               )}
               Connect Internet Phone
             </Button>
-          ) : (
+          ) : null}
+
+          {connected && localConnection ? (
             <div className="space-y-4">
+              {!config.agentConfigured ? (
+                <p className="text-sm text-amber-700">
+                  {INTERNET_PHONE_MESSAGES.agentNotConfigured}
+                </p>
+              ) : (
+                <p className="text-sm text-emerald-700">
+                  AI agent worker is configured — callers will be greeted automatically.
+                </p>
+              )}
+
               <IntegrationCopyField
                 label={INTERNET_PHONE_MESSAGES.copyLink}
                 value={localConnection.publicUrl}
@@ -184,9 +201,16 @@ export function InternetPhoneActivatePanel({
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
+
+      {connected ? (
+        <InternetPhoneLiveCallsPanel
+          businessId={businessId ?? localConnection?.businessId ?? null}
+          enabled={connected}
+        />
+      ) : null}
 
       {connected ? (
         <IntegrationDangerZone

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Room,
   RoomEvent,
   Track,
   createLocalAudioTrack,
   type LocalAudioTrack,
+  type RemoteTrack,
 } from "livekit-client";
 import { Loader2Icon, PhoneIcon, PhoneOffIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -35,12 +36,23 @@ function getOrCreateVisitorId(): string {
   }
 }
 
+function attachRemoteAudio(track: RemoteTrack, container: HTMLDivElement) {
+  const element = track.attach() as HTMLAudioElement;
+  element.autoplay = true;
+  element.setAttribute("playsinline", "true");
+  element.className = "hidden";
+  container.appendChild(element);
+}
+
 export function PublicCallClient({ page }: PublicCallClientProps) {
   const [phase, setPhase] = useState<"idle" | "connecting" | "live" | "ended">(
     "idle",
   );
+  const [statusLabel, setStatusLabel] = useState<string | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [micTrack, setMicTrack] = useState<LocalAudioTrack | null>(null);
+  const [callId, setCallId] = useState<string | null>(null);
+  const audioHostRef = useRef<HTMLDivElement | null>(null);
 
   const accent = useMemo(
     () => page.primaryColor || "#0F766E",
@@ -48,15 +60,29 @@ export function PublicCallClient({ page }: PublicCallClientProps) {
   );
 
   const hangUp = useCallback(async () => {
+    if (callId) {
+      void fetch(`/api/public/call/${page.publicId}/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callId }),
+      }).catch(() => undefined);
+    }
+
     micTrack?.stop();
     setMicTrack(null);
     await room?.disconnect();
     setRoom(null);
+    setCallId(null);
+    setStatusLabel(null);
+    if (audioHostRef.current) {
+      audioHostRef.current.innerHTML = "";
+    }
     setPhase("ended");
-  }, [micTrack, room]);
+  }, [callId, micTrack, page.publicId, room]);
 
   const startCall = useCallback(async () => {
     setPhase("connecting");
+    setStatusLabel(INTERNET_PHONE_MESSAGES.aiConnecting);
 
     try {
       const visitorId = getOrCreateVisitorId();
@@ -74,12 +100,28 @@ export function PublicCallClient({ page }: PublicCallClientProps) {
       }
 
       const payload = (await response.json()) as InternetPhoneTokenResponse;
+      setCallId(payload.callId);
+
       const audioTrack = await createLocalAudioTrack();
       const nextRoom = new Room({ adaptiveStream: true, dynacast: true });
+
+      nextRoom.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+        if (track.kind !== Track.Kind.Audio || !audioHostRef.current) return;
+        attachRemoteAudio(track, audioHostRef.current);
+
+        const identity = participant.identity ?? "";
+        if (identity.startsWith("ai_")) {
+          setStatusLabel(INTERNET_PHONE_MESSAGES.aiLive);
+        } else if (identity.startsWith("staff_")) {
+          setStatusLabel(INTERNET_PHONE_MESSAGES.humanLive);
+        }
+      });
 
       nextRoom.on(RoomEvent.Disconnected, () => {
         setPhase("ended");
         setRoom(null);
+        setCallId(null);
+        setStatusLabel(null);
       });
 
       await nextRoom.connect(payload.livekitUrl, payload.token);
@@ -90,11 +132,18 @@ export function PublicCallClient({ page }: PublicCallClientProps) {
       setMicTrack(audioTrack);
       setRoom(nextRoom);
       setPhase("live");
+
+      if (payload.aiStatus === "joining" || payload.aiStatus === "active") {
+        setStatusLabel(INTERNET_PHONE_MESSAGES.aiConnecting);
+      } else {
+        setStatusLabel("Connected — waiting for a team member");
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : INTERNET_PHONE_MESSAGES.micDenied;
       toast.error(message);
       setPhase("idle");
+      setStatusLabel(null);
     }
   }, [page.publicId]);
 
@@ -140,7 +189,7 @@ export function PublicCallClient({ page }: PublicCallClientProps) {
           {phase === "live" ? (
             <>
               <p className="text-center text-sm font-medium text-emerald-700">
-                Connected — speak now
+                {statusLabel || "Connected — speak now"}
               </p>
               <Button
                 type="button"
@@ -161,6 +210,7 @@ export function PublicCallClient({ page }: PublicCallClientProps) {
             </p>
           ) : null}
         </div>
+        <div ref={audioHostRef} className="hidden" aria-hidden />
       </div>
     </div>
   );

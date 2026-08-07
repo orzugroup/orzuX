@@ -262,6 +262,7 @@ export default async function IntegrationsChannelPage({
           internetPhone={{
             connection: internetPhoneConnection,
             connectConfig: internetPhoneConfig,
+            businessId: business?.id ?? null,
           }}
           googleCalendar={{
             connection: googleCalendarConnection,

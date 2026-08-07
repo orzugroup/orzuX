@@ -452,6 +452,12 @@ export async function handleVoiceStreamLifecycle(input: {
     return;
   }
 
+  // Internet Phone uses synthetic call keys and its own call table — never
+  // create Twilio voice_call_logs rows for those sessions.
+  if (input.callSid.trim().startsWith("inetphone:")) {
+    return;
+  }
+
   const repo = getVoiceRepository();
   const existing = await repo.findCallLogByExternalCallId(input.callSid);
 

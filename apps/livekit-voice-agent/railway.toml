@@ -1,0 +1,18 @@
+# OrzuAI LiveKit Internet Phone voice agent (Railway service).
+# Deploy as a second Railway service from repo root.
+
+[build]
+builder = "RAILPACK"
+watchPatterns = [
+  "apps/livekit-voice-agent/**",
+  "package.json",
+  "package-lock.json",
+  "apps/livekit-voice-agent/railway.toml"
+]
+
+[deploy]
+startCommand = "node --import tsx apps/livekit-voice-agent/src/server.ts"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

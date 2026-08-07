@@ -3,6 +3,32 @@ export type InternetPhoneConnectionStatus =
   | "connected"
   | "disconnected";
 
+export type InternetPhoneCallStatus =
+  | "started"
+  | "ringing"
+  | "ai_active"
+  | "human_active"
+  | "active"
+  | "ended"
+  | "failed";
+
+export type InternetPhoneCallMode = "ai" | "human" | "handoff";
+
+export type InternetPhoneAiStatus =
+  | "pending"
+  | "joining"
+  | "active"
+  | "muted"
+  | "left"
+  | "failed";
+
+export type InternetPhoneEndedReason =
+  | "customer_hangup"
+  | "staff_end"
+  | "ai_end"
+  | "failed"
+  | "timeout";
+
 export type InternetPhoneConnectionData = {
   id: string;
   businessId: string;
@@ -19,6 +45,7 @@ export type InternetPhoneConnectionData = {
 export type InternetPhoneConnectConfig = {
   isConfigured: boolean;
   livekitUrl: string | null;
+  agentConfigured: boolean;
 };
 
 export type ConnectInternetPhoneResult =
@@ -41,4 +68,33 @@ export type InternetPhoneTokenResponse = {
   token: string;
   roomName: string;
   callId: string;
+  aiStatus: InternetPhoneAiStatus;
+};
+
+export type InternetPhoneLiveCall = {
+  id: string;
+  businessId: string;
+  roomName: string;
+  visitorId: string;
+  status: InternetPhoneCallStatus;
+  callMode: InternetPhoneCallMode;
+  aiStatus: InternetPhoneAiStatus;
+  humanHandled: boolean;
+  staffRequested: boolean;
+  contactId: string | null;
+  conversationId: string | null;
+  operatorUserId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  handoffAt: string | null;
+  staffRequestedAt: string | null;
+};
+
+export type InternetPhoneStaffTokenResponse = {
+  livekitUrl: string;
+  token: string;
+  roomName: string;
+  callId: string;
+  mode: "listen" | "talk";
+  identity: string;
 };

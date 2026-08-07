@@ -121,6 +121,7 @@ type IntegrationSectionPanelsProps = {
   internetPhone?: {
     connection: InternetPhoneConnectionData | null;
     connectConfig: InternetPhoneConnectConfig;
+    businessId?: string | null;
   };
   googleCalendar?: {
     connection: GoogleCalendarConnectionData | null;
@@ -315,6 +316,7 @@ function ActivateSection({
       <InternetPhoneActivatePanel
         connection={internetPhone.connection}
         config={internetPhone.connectConfig}
+        businessId={internetPhone.businessId ?? internetPhone.connection?.businessId ?? null}
         hasBusiness={hasBusiness}
         embeddedInHub
       />

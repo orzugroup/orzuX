@@ -28,6 +28,8 @@
     "postinstall": "patch-package",
     "voice-stream": "npm run start --workspace=@orzu/voice-stream",
     "dev:voice-stream": "npm run dev --workspace=@orzu/voice-stream",
+    "livekit-voice-agent": "npm run start --workspace=@orzu/livekit-voice-agent",
+    "dev:livekit-voice-agent": "npm run dev --workspace=@orzu/livekit-voice-agent",
     "telegram-userbot": "npm run start --workspace=@orzu/telegram-userbot",
     "dev:telegram-userbot": "npm run dev --workspace=@orzu/telegram-userbot",
     "whatsapp-web": "npm run start --workspace=@orzu/whatsapp-web",

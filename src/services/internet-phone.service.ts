@@ -7,6 +7,12 @@ import {
   INTERNET_PHONE_DEFAULTS,
   INTERNET_PHONE_MESSAGES,
 } from "@/features/internet-phone/constants";
+import {
+  controlInternetPhoneAgent,
+  dispatchInternetPhoneAgentJoin,
+  isInternetPhoneAgentConfigured,
+} from "@/lib/internet-phone/agent-dispatch";
+import { toInternetPhoneCallKey } from "@/lib/internet-phone/call-key";
 import { hasLiveKitEnv } from "@/lib/livekit/config";
 import { createInternetPhoneParticipantToken } from "@/lib/livekit/token";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -18,9 +24,15 @@ import { getCurrentUser } from "@/services/auth.service";
 import { getPrimaryBusiness } from "@/services/business.service";
 import type {
   ConnectInternetPhoneResult,
+  InternetPhoneAiStatus,
+  InternetPhoneCallMode,
+  InternetPhoneCallStatus,
   InternetPhoneConnectConfig,
   InternetPhoneConnectionData,
   InternetPhoneConnectionStatus,
+  InternetPhoneEndedReason,
+  InternetPhoneLiveCall,
+  InternetPhoneStaffTokenResponse,
   InternetPhoneTokenResponse,
   PublicInternetPhonePageData,
 } from "@/types/internet-phone.types";
@@ -36,6 +48,28 @@ type InternetPhoneConnectionRow = {
   primary_color: string;
   connected_at: string | null;
   last_call_at: string | null;
+};
+
+type InternetPhoneCallRow = {
+  id: string;
+  business_id: string;
+  connection_id: string;
+  room_name: string;
+  visitor_id: string;
+  status: InternetPhoneCallStatus;
+  call_mode: InternetPhoneCallMode;
+  ai_status: InternetPhoneAiStatus;
+  ai_identity: string | null;
+  human_handled: boolean;
+  staff_requested: boolean;
+  contact_id: string | null;
+  conversation_id: string | null;
+  operator_user_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  handoff_at: string | null;
+  staff_requested_at: string | null;
+  staff_identity: string | null;
 };
 
 function getAppBaseUrl(): string {
@@ -70,6 +104,27 @@ function mapConnection(row: InternetPhoneConnectionRow): InternetPhoneConnection
   };
 }
 
+function mapLiveCall(row: InternetPhoneCallRow): InternetPhoneLiveCall {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    roomName: row.room_name,
+    visitorId: row.visitor_id,
+    status: row.status,
+    callMode: row.call_mode,
+    aiStatus: row.ai_status,
+    humanHandled: row.human_handled,
+    staffRequested: row.staff_requested,
+    contactId: row.contact_id,
+    conversationId: row.conversation_id,
+    operatorUserId: row.operator_user_id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    handoffAt: row.handoff_at,
+    staffRequestedAt: row.staff_requested_at,
+  };
+}
+
 async function getOwnedBusinessId(): Promise<string | null> {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -81,6 +136,7 @@ export function getInternetPhoneConnectConfig(): InternetPhoneConnectConfig {
   return {
     isConfigured: hasLiveKitEnv(),
     livekitUrl: process.env[ENV_KEYS.LIVEKIT_URL]?.trim() || null,
+    agentConfigured: isInternetPhoneAgentConfigured(),
   };
 }
 
@@ -305,6 +361,7 @@ export async function startPublicInternetPhoneCall(input: {
     identity: `visitor_${visitorId}`,
     roomName,
     displayName: "Caller",
+    role: "visitor",
   });
 
   if (!tokenPayload) {
@@ -325,6 +382,7 @@ export async function startPublicInternetPhoneCall(input: {
     displayLabel: "Internet Phone caller",
   });
 
+  const now = new Date().toISOString();
   const { data: callRow, error: callError } = await supabase
     .from("internet_phone_calls")
     .insert({
@@ -332,7 +390,9 @@ export async function startPublicInternetPhoneCall(input: {
       connection_id: row.id,
       room_name: roomName,
       visitor_id: visitorId,
-      status: "started",
+      status: "ringing",
+      call_mode: "ai",
+      ai_status: "pending",
       contact_id: ingest?.contactId ?? null,
       conversation_id: ingest?.conversationId ?? null,
     })
@@ -347,9 +407,69 @@ export async function startPublicInternetPhoneCall(input: {
     };
   }
 
+  const callId = callRow.id as string;
+  const aiIdentity = `ai_${callId.replace(/-/g, "").slice(0, 20)}`;
+  let aiStatus: InternetPhoneAiStatus = "pending";
+
+  if (isInternetPhoneAgentConfigured()) {
+    const agentToken = await createInternetPhoneParticipantToken({
+      identity: aiIdentity,
+      roomName,
+      displayName: "AI Agent",
+      role: "ai",
+    });
+
+    if (agentToken) {
+      await supabase
+        .from("internet_phone_calls")
+        .update({
+          ai_status: "joining",
+          ai_identity: aiIdentity,
+          status: "ringing",
+        })
+        .eq("id", callId);
+
+      const dispatched = await dispatchInternetPhoneAgentJoin({
+        callId,
+        businessId: row.business_id,
+        roomName,
+        livekitUrl: agentToken.livekitUrl,
+        token: agentToken.token,
+        aiIdentity,
+        callKey: toInternetPhoneCallKey(callId),
+      });
+
+      if (dispatched.ok) {
+        aiStatus = "joining";
+      } else {
+        aiStatus = "failed";
+        console.warn(
+          "[internet-phone] agent dispatch failed",
+          JSON.stringify({ callId, error: dispatched.error }),
+        );
+        await supabase
+          .from("internet_phone_calls")
+          .update({ ai_status: "failed", status: "active" })
+          .eq("id", callId);
+      }
+    } else {
+      aiStatus = "failed";
+      await supabase
+        .from("internet_phone_calls")
+        .update({ ai_status: "failed", status: "active" })
+        .eq("id", callId);
+    }
+  } else {
+    aiStatus = "failed";
+    await supabase
+      .from("internet_phone_calls")
+      .update({ ai_status: "failed", status: "active" })
+      .eq("id", callId);
+  }
+
   await supabase
     .from("internet_phone_connections")
-    .update({ last_call_at: new Date().toISOString() })
+    .update({ last_call_at: now })
     .eq("id", row.id);
 
   return {
@@ -358,7 +478,251 @@ export async function startPublicInternetPhoneCall(input: {
       livekitUrl: tokenPayload.livekitUrl,
       token: tokenPayload.token,
       roomName,
-      callId: callRow.id as string,
+      callId,
+      aiStatus,
     },
   };
+}
+
+export async function listActiveInternetPhoneCalls(
+  businessId: string,
+): Promise<InternetPhoneLiveCall[]> {
+  if (!hasSupabaseEnv()) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("internet_phone_calls")
+    .select("*")
+    .eq("business_id", businessId)
+    .is("ended_at", null)
+    .order("started_at", { ascending: false })
+    .limit(25);
+
+  if (error || !data) return [];
+  return (data as InternetPhoneCallRow[]).map(mapLiveCall);
+}
+
+export async function mintInternetPhoneStaffToken(input: {
+  callId: string;
+  mode: "listen" | "talk";
+}): Promise<
+  | { success: true; data: InternetPhoneStaffTokenResponse }
+  | { success: false; error: string }
+> {
+  const user = await getCurrentUser();
+  const businessId = await getOwnedBusinessId();
+  if (!user || !businessId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("internet_phone_calls")
+    .select("*")
+    .eq("id", input.callId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { success: false, error: "Call not found" };
+  }
+
+  const call = data as InternetPhoneCallRow;
+  if (call.ended_at) {
+    return { success: false, error: "Call already ended" };
+  }
+
+  const identity =
+    input.mode === "listen"
+      ? `monitor_${user.id.slice(0, 8)}_${randomBytes(3).toString("hex")}`
+      : `staff_${user.id.slice(0, 8)}_${randomBytes(3).toString("hex")}`;
+
+  const tokenPayload = await createInternetPhoneParticipantToken({
+    identity,
+    roomName: call.room_name,
+    displayName: input.mode === "listen" ? "Staff (listen)" : "Staff",
+    role: input.mode === "listen" ? "monitor" : "staff",
+  });
+
+  if (!tokenPayload) {
+    return { success: false, error: INTERNET_PHONE_MESSAGES.notConfigured };
+  }
+
+  if (input.mode === "talk") {
+    await supabase
+      .from("internet_phone_calls")
+      .update({
+        staff_identity: identity,
+        operator_user_id: user.id,
+      })
+      .eq("id", call.id);
+  }
+
+  return {
+    success: true,
+    data: {
+      livekitUrl: tokenPayload.livekitUrl,
+      token: tokenPayload.token,
+      roomName: call.room_name,
+      callId: call.id,
+      mode: input.mode,
+      identity,
+    },
+  };
+}
+
+export async function handoffInternetPhoneCall(input: {
+  callId: string;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  const user = await getCurrentUser();
+  const businessId = await getOwnedBusinessId();
+  if (!user || !businessId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("internet_phone_calls")
+    .update({
+      call_mode: "handoff",
+      human_handled: true,
+      handoff_at: now,
+      operator_user_id: user.id,
+      ai_status: "muted",
+      status: "human_active",
+      staff_requested: false,
+    })
+    .eq("id", input.callId)
+    .eq("business_id", businessId)
+    .is("ended_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    return { success: false, error: INTERNET_PHONE_MESSAGES.handoffFailed };
+  }
+
+  await controlInternetPhoneAgent({ callId: input.callId, action: "handoff" });
+  return { success: true };
+}
+
+export async function endInternetPhoneCall(input: {
+  callId: string;
+  reason?: InternetPhoneEndedReason;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  const businessId = await getOwnedBusinessId();
+  if (!businessId) {
+    return { success: false, error: "Unauthorized" };
+  }
+
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("internet_phone_calls")
+    .update({
+      status: "ended",
+      ended_at: now,
+      ended_reason: input.reason ?? "staff_end",
+      ai_status: "left",
+      ai_left_at: now,
+    })
+    .eq("id", input.callId)
+    .eq("business_id", businessId)
+    .is("ended_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data) {
+    return { success: false, error: INTERNET_PHONE_MESSAGES.endCallFailed };
+  }
+
+  await controlInternetPhoneAgent({ callId: input.callId, action: "end" });
+  return { success: true };
+}
+
+export async function updateInternetPhoneCallLifecycle(input: {
+  callId: string;
+  event:
+    | "ai_joined"
+    | "ai_active"
+    | "ai_muted"
+    | "ai_left"
+    | "ai_failed"
+    | "customer_ended"
+    | "staff_requested";
+  reason?: InternetPhoneEndedReason;
+}): Promise<void> {
+  if (!hasSupabaseEnv()) return;
+
+  const supabase = createAdminClient();
+  const now = new Date().toISOString();
+
+  switch (input.event) {
+    case "ai_joined":
+      await supabase
+        .from("internet_phone_calls")
+        .update({
+          ai_status: "active",
+          ai_joined_at: now,
+          status: "ai_active",
+        })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "ai_active":
+      await supabase
+        .from("internet_phone_calls")
+        .update({ ai_status: "active", status: "ai_active" })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "ai_muted":
+      await supabase
+        .from("internet_phone_calls")
+        .update({ ai_status: "muted", status: "human_active", call_mode: "handoff" })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "ai_left":
+      await supabase
+        .from("internet_phone_calls")
+        .update({ ai_status: "left", ai_left_at: now })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "ai_failed":
+      await supabase
+        .from("internet_phone_calls")
+        .update({ ai_status: "failed", status: "active" })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "staff_requested":
+      await supabase
+        .from("internet_phone_calls")
+        .update({
+          staff_requested: true,
+          staff_requested_at: now,
+        })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      break;
+    case "customer_ended":
+      await supabase
+        .from("internet_phone_calls")
+        .update({
+          status: "ended",
+          ended_at: now,
+          ended_reason: input.reason ?? "customer_hangup",
+          ai_status: "left",
+          ai_left_at: now,
+        })
+        .eq("id", input.callId)
+        .is("ended_at", null);
+      await controlInternetPhoneAgent({ callId: input.callId, action: "end" });
+      break;
+    default:
+      break;
+  }
 }
