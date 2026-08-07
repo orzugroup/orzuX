@@ -12,9 +12,9 @@
     "@orzu/secrets": "*",
     "@supabase/supabase-js": "^2.106.2",
     "@whiskeysockets/baileys": "^6.7.9",
-    "pino": "^9.5.0",
+    "pino": "^10.3.1",
     "qrcode": "^1.5.4",
-    "tsx": "^4.22.3"
+    "tsx": "^4.23.5"
   },
   "devDependencies": {
     "@types/node": "^20",

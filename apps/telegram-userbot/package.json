@@ -11,7 +11,7 @@
     "@orzu/secrets": "*",
     "@supabase/supabase-js": "^2.106.2",
     "telegram": "^2.26.22",
-    "tsx": "^4.22.3"
+    "tsx": "^4.23.5"
   },
   "devDependencies": {
     "@types/node": "^20",
