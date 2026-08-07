@@ -51,6 +51,9 @@ export class LiveKitVoiceAgentSession {
   private ttsAbort: AbortController | null = null;
   private echoGuardUntil = 0;
   private visitorTrackActive = false;
+  /** PCM buffered before Deepgram is ready (context load race). */
+  private pendingPcm: Int16Array[] = [];
+  private static readonly MAX_PENDING_PCM_CHUNKS = 250;
 
   constructor(
     private readonly payload: JoinPayload,
@@ -153,6 +156,12 @@ export class LiveKitVoiceAgentSession {
       },
     });
 
+    // Flush audio that arrived while context/Deepgram were still loading.
+    for (const chunk of this.pendingPcm) {
+      this.deepgram.sendPcm(chunk);
+    }
+    this.pendingPcm = [];
+
     await notifyInternetPhoneLifecycle({
       appUrl: this.appUrl,
       secret: this.secret,
@@ -239,6 +248,18 @@ export class LiveKitVoiceAgentSession {
     return false;
   }
 
+  private feedStt(pcm: Int16Array): void {
+    if (pcm.length === 0) return;
+    if (this.deepgram) {
+      this.deepgram.sendPcm(pcm);
+      return;
+    }
+    this.pendingPcm.push(pcm);
+    while (this.pendingPcm.length > LiveKitVoiceAgentSession.MAX_PENDING_PCM_CHUNKS) {
+      this.pendingPcm.shift();
+    }
+  }
+
   private isVisitorParticipant(participant: RemoteParticipant | undefined): boolean {
     const identity = participant?.identity ?? "";
     return identity.startsWith("visitor_");
@@ -274,12 +295,9 @@ export class LiveKitVoiceAgentSession {
         const { done, value } = await reader.read();
         if (done || !value) break;
 
-        if (this.shouldIgnoreInboundSpeech()) {
-          continue;
-        }
-
-        // Copy before sending — LiveKit may reuse frame buffers.
-        this.deepgram?.sendPcm(copyPcm16(value.data));
+        // Always feed STT (keeps Deepgram alive). Echo/barge-in is filtered
+        // in transcript + SpeechStarted handlers, not by dropping PCM.
+        this.feedStt(copyPcm16(value.data));
       }
     } catch (error) {
       console.warn(
@@ -298,6 +316,11 @@ export class LiveKitVoiceAgentSession {
 
     const cleaned = text.trim();
     if (!cleaned) return;
+
+    console.info("[livekit-voice-agent] transcript", {
+      callId: this.payload.callId,
+      text: cleaned.slice(0, 160),
+    });
 
     this.turnInFlight = true;
     try {
@@ -319,7 +342,13 @@ export class LiveKitVoiceAgentSession {
       });
 
       const answer = reply.text?.trim();
-      if (!answer) return;
+      if (!answer) {
+        console.warn(
+          "[livekit-voice-agent] empty reply",
+          this.payload.callId,
+        );
+        return;
+      }
 
       await this.speak(answer);
 

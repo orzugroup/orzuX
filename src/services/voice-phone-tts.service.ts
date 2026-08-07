@@ -16,6 +16,9 @@ import { getVoiceAgentSettings } from "@/services/voice-config.service";
 
 const PHONE_TTS_MODEL = "eleven_turbo_v2_5";
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
+/** Fallback when a business has not picked an ElevenLabs voice yet. */
+const DEFAULT_PHONE_VOICE_ID =
+  process.env.DEFAULT_ELEVENLABS_VOICE_ID?.trim() || "EXAVITQu4vr4xnSDxMaL";
 
 export type PhoneVoiceSettings = {
   useElevenLabs: boolean;
@@ -41,7 +44,8 @@ export async function loadPhoneVoiceSettings(
   ]);
 
   const profile = profileResult.data;
-  const voiceId = profile?.elevenlabs_voice_id?.trim() || null;
+  const configuredVoiceId = profile?.elevenlabs_voice_id?.trim() || null;
+  const voiceId = configuredVoiceId || DEFAULT_PHONE_VOICE_ID;
   const language =
     profile?.language?.trim() ||
     voiceSettings.voiceLanguage?.trim() ||

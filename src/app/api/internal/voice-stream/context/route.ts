@@ -29,12 +29,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(context);
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unable to load voice context.",
-      },
-      { status: 503 },
+    const message =
+      error instanceof Error ? error.message : "Unable to load voice context.";
+    console.error(
+      "[voice-stream/context] failed",
+      JSON.stringify({ businessId, callSid, triggerReason, message }),
     );
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

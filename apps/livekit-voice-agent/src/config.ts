@@ -66,7 +66,11 @@ export async function fetchVoiceStreamContext(input: {
   });
 
   if (!response.ok) {
-    throw new Error(`Context fetch failed (${response.status})`);
+    const detail = await response.text().catch(() => "");
+    const trimmed = detail.trim().slice(0, 300);
+    throw new Error(
+      `Context fetch failed (${response.status})${trimmed ? `: ${trimmed}` : ""}`,
+    );
   }
 
   return (await response.json()) as VoiceStreamContext;
@@ -99,7 +103,11 @@ export async function requestVoiceStreamReply(input: {
   );
 
   if (!response.ok) {
-    throw new Error(`Reply fetch failed (${response.status})`);
+    const detail = await response.text().catch(() => "");
+    const trimmed = detail.trim().slice(0, 300);
+    throw new Error(
+      `Reply fetch failed (${response.status})${trimmed ? `: ${trimmed}` : ""}`,
+    );
   }
 
   return (await response.json()) as VoiceStreamReplyResult;
