@@ -64,7 +64,8 @@ export type MessagingChannel =
   | "outlook"
   | "voice"
   | "sms"
-  | "website_chat";
+  | "website_chat"
+  | "internet_phone";
 
 export type ConversationStatus =
   | "open"
@@ -1520,6 +1521,116 @@ export type Database = {
             columns: ["business_id"];
             isOneToOne: true;
             referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      internet_phone_connections: {
+        Row: {
+          id: string;
+          business_id: string;
+          public_id: string;
+          connection_status: WebsiteFormStatus;
+          display_name: string | null;
+          greeting_message: string;
+          primary_color: string;
+          connected_at: string | null;
+          last_call_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          public_id: string;
+          connection_status?: WebsiteFormStatus;
+          display_name?: string | null;
+          greeting_message?: string;
+          primary_color?: string;
+          connected_at?: string | null;
+          last_call_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          public_id?: string;
+          connection_status?: WebsiteFormStatus;
+          display_name?: string | null;
+          greeting_message?: string;
+          primary_color?: string;
+          connected_at?: string | null;
+          last_call_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "internet_phone_connections_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: true;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      internet_phone_calls: {
+        Row: {
+          id: string;
+          business_id: string;
+          connection_id: string;
+          room_name: string;
+          visitor_id: string;
+          status: string;
+          contact_id: string | null;
+          conversation_id: string | null;
+          started_at: string;
+          ended_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          connection_id: string;
+          room_name: string;
+          visitor_id: string;
+          status?: string;
+          contact_id?: string | null;
+          conversation_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          connection_id?: string;
+          room_name?: string;
+          visitor_id?: string;
+          status?: string;
+          contact_id?: string | null;
+          conversation_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "internet_phone_calls_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "internet_phone_calls_connection_id_fkey";
+            columns: ["connection_id"];
+            isOneToOne: false;
+            referencedRelation: "internet_phone_connections";
             referencedColumns: ["id"];
           },
         ];

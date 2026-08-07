@@ -6,6 +6,7 @@ import { ActivateFirstPrompt } from "@/components/integrations/ActivateFirstProm
 import { SmsActivatePanel } from "@/components/sms/SmsActivatePanel";
 import { TelegramActivatePanel } from "@/components/telegram/TelegramActivatePanel";
 import { TelegramUserPanel } from "@/components/telegram/TelegramUserPanel";
+import { InternetPhoneActivatePanel } from "@/components/internet-phone/InternetPhoneActivatePanel";
 import { VoiceActivatePanel } from "@/components/voice/VoiceActivatePanel";
 import { WebsiteChatActivatePanel } from "@/components/website-chat/WebsiteChatActivatePanel";
 import { WebsiteFormsActivatePanel } from "@/components/website-forms/WebsiteFormsActivatePanel";
@@ -72,6 +73,10 @@ import type {
   GoogleCalendarConnectConfig,
   GoogleCalendarConnectionData,
 } from "@/types/google-calendar.types";
+import type {
+  InternetPhoneConnectConfig,
+  InternetPhoneConnectionData,
+} from "@/types/internet-phone.types";
 
 type IntegrationSectionPanelsProps = {
   channel: IntegrationChannelId;
@@ -113,6 +118,10 @@ type IntegrationSectionPanelsProps = {
     connection: VoiceConnectionData | null;
     settings: VoiceAgentSettings | null;
   };
+  internetPhone?: {
+    connection: InternetPhoneConnectionData | null;
+    connectConfig: InternetPhoneConnectConfig;
+  };
   googleCalendar?: {
     connection: GoogleCalendarConnectionData | null;
     connectConfig: GoogleCalendarConnectConfig;
@@ -142,6 +151,7 @@ export function IntegrationSectionPanels({
   websiteChat,
   voice,
   sms,
+  internetPhone,
   googleCalendar,
   gmail,
   outlook,
@@ -164,6 +174,7 @@ export function IntegrationSectionPanels({
           websiteChat={websiteChat}
           voice={voice}
           sms={sms}
+          internetPhone={internetPhone}
           googleCalendar={googleCalendar}
           gmail={gmail}
           outlook={outlook}
@@ -200,6 +211,7 @@ function ActivateSection({
   websiteChat,
   voice,
   sms,
+  internetPhone,
   googleCalendar,
   gmail,
   outlook,
@@ -214,6 +226,7 @@ function ActivateSection({
   websiteChat?: IntegrationSectionPanelsProps["websiteChat"];
   voice?: IntegrationSectionPanelsProps["voice"];
   sms?: IntegrationSectionPanelsProps["sms"];
+  internetPhone?: IntegrationSectionPanelsProps["internetPhone"];
   googleCalendar?: IntegrationSectionPanelsProps["googleCalendar"];
   gmail?: IntegrationSectionPanelsProps["gmail"];
   outlook?: IntegrationSectionPanelsProps["outlook"];
@@ -293,6 +306,17 @@ function ActivateSection({
         hasBusiness={hasBusiness}
         embeddedInHub
         forwardToE164={voice.forwardToE164 ?? null}
+      />
+    );
+  }
+
+  if (channel === "internet_phone" && internetPhone) {
+    return (
+      <InternetPhoneActivatePanel
+        connection={internetPhone.connection}
+        config={internetPhone.connectConfig}
+        hasBusiness={hasBusiness}
+        embeddedInHub
       />
     );
   }

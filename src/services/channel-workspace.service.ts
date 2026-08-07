@@ -35,6 +35,7 @@ import { getTelegramUserConnection } from "@/services/telegram-user.service";
 import { getWebsiteFormConnection } from "@/services/website-forms.service";
 import { getWebsiteChatConnection } from "@/services/website-chat.service";
 import { getWebsiteKnowledgeSync } from "@/services/website-knowledge.service";
+import { getInternetPhoneConnection } from "@/services/internet-phone.service";
 import { getVoiceAgentSettings, getVoiceConnection } from "@/services/voice-agent.service";
 import { getWhatsAppConnection } from "@/services/whatsapp.service";
 import { getWhatsAppWebConnection } from "@/services/whatsapp-web.service";
@@ -392,6 +393,7 @@ export async function getChannelConnectionStatuses(businessId: string) {
     websiteKnowledge,
     voice,
     voiceSettings,
+    internetPhone,
     googleCalendar,
     gmail,
     outlook,
@@ -405,6 +407,7 @@ export async function getChannelConnectionStatuses(businessId: string) {
     getWebsiteKnowledgeSync(businessId),
     getVoiceConnection(businessId),
     getVoiceAgentSettings(businessId),
+    getInternetPhoneConnection(businessId),
     getGoogleCalendarConnection(businessId),
     getGmailConnection(businessId),
     getOutlookConnection(businessId),
@@ -420,6 +423,7 @@ export async function getChannelConnectionStatuses(businessId: string) {
     websiteKnowledgeSync: websiteKnowledge,
     voiceConnection: voice,
     voiceSmsEnabled: voiceSettings?.smsEnabled ?? false,
+    internetPhoneConnection: internetPhone,
     googleCalendarConnection: googleCalendar,
     gmailConnection: gmail,
     outlookConnection: outlook,

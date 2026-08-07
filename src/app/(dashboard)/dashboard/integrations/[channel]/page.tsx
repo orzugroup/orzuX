@@ -25,6 +25,10 @@ import {
 } from "@/services/website-chat.service";
 import { getWebsiteKnowledgeSync } from "@/services/website-knowledge.service";
 import {
+  getInternetPhoneConnectConfig,
+  getInternetPhoneConnection,
+} from "@/services/internet-phone.service";
+import {
   getVoiceAgentSettings,
   getVoiceConnectConfig,
   getVoiceConnection,
@@ -123,6 +127,8 @@ export default async function IntegrationsChannelPage({
     twilioPhoneNumbers,
     twilioDiagnostics,
     orzuVoiceNumber,
+    internetPhoneConnection,
+    internetPhoneConfig,
     googleCalendarConnection,
     googleCalendarConnectConfig,
     gmailConnection,
@@ -153,6 +159,8 @@ export default async function IntegrationsChannelPage({
     business && channel === "voice"
       ? getActiveOrzuVoiceNumber(business.id)
       : Promise.resolve(null),
+    business ? getInternetPhoneConnection(business.id) : Promise.resolve(null),
+    Promise.resolve(getInternetPhoneConnectConfig()),
     business ? getGoogleCalendarConnection(business.id) : Promise.resolve(null),
     Promise.resolve(getGoogleCalendarConnectConfig()),
     business ? getGmailConnection(business.id) : Promise.resolve(null),
@@ -171,6 +179,7 @@ export default async function IntegrationsChannelPage({
     websiteKnowledgeSync,
     voiceConnection,
     voiceSmsEnabled: voiceSettings?.smsEnabled ?? false,
+    internetPhoneConnection,
     googleCalendarConnection,
     gmailConnection,
     outlookConnection,
@@ -249,6 +258,10 @@ export default async function IntegrationsChannelPage({
           sms={{
             connection: voiceConnection,
             settings: voiceSettings,
+          }}
+          internetPhone={{
+            connection: internetPhoneConnection,
+            connectConfig: internetPhoneConfig,
           }}
           googleCalendar={{
             connection: googleCalendarConnection,

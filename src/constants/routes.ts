@@ -90,6 +90,7 @@ export const DASHBOARD_ROUTES = {
 
 export const PUBLIC_ROUTES = {
   book: (slug: string) => `/book/${slug}`,
+  call: (publicId: string) => `/call/${publicId}`,
 } as const;
 
 export const PROTECTED_ROUTE_PREFIXES = ["/dashboard"] as const;

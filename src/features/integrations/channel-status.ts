@@ -9,6 +9,7 @@ import type { WebsiteChatConnectionData } from "@/types/website-chat.types";
 import type { WebsiteKnowledgeSyncData } from "@/types/website-knowledge.types";
 import type { WhatsAppConnectionData } from "@/types/whatsapp.types";
 import type { WhatsAppWebConnection } from "@/services/whatsapp-web.service";
+import type { InternetPhoneConnectionData } from "@/types/internet-phone.types";
 
 import {
   MESSAGING_INTEGRATION_CHANNELS,
@@ -41,6 +42,7 @@ type BuildChannelStatusesInput = {
   websiteKnowledgeSync: WebsiteKnowledgeSyncData | null;
   voiceConnection?: VoiceConnectionData | null;
   voiceSmsEnabled?: boolean;
+  internetPhoneConnection?: InternetPhoneConnectionData | null;
   googleCalendarConnection?: GoogleCalendarConnectionData | null;
   gmailConnection?: GmailConnectionData | null;
   outlookConnection?: OutlookConnectionData | null;
@@ -56,6 +58,7 @@ export function buildIntegrationChannelStatuses({
   websiteKnowledgeSync,
   voiceConnection,
   voiceSmsEnabled = false,
+  internetPhoneConnection,
   googleCalendarConnection,
   gmailConnection,
   outlookConnection,
@@ -203,6 +206,16 @@ export function buildIntegrationChannelStatuses({
     smsStatus = "pending";
   }
 
+  let internetPhoneStatus: IntegrationChannelStatus = "disconnected";
+  let internetPhoneDetail: string | undefined;
+
+  if (internetPhoneConnection?.status === "connected") {
+    internetPhoneStatus = "connected";
+    internetPhoneDetail = internetPhoneConnection.publicId;
+  } else if (internetPhoneConnection?.status === "pending") {
+    internetPhoneStatus = "pending";
+  }
+
   return {
     whatsapp: {
       status: whatsappStatus,
@@ -231,6 +244,10 @@ export function buildIntegrationChannelStatuses({
     voice: {
       status: voiceStatus,
       detail: voiceDetail,
+    },
+    internet_phone: {
+      status: internetPhoneStatus,
+      detail: internetPhoneDetail,
     },
     google_calendar: {
       status: googleCalendarStatus,

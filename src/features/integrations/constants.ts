@@ -53,6 +53,7 @@ export const INTEGRATION_CHANNELS = [
   "facebook_messenger",
   "sms",
   "voice",
+  "internet_phone",
   "google_calendar",
   "website_knowledge",
 ] as const;
@@ -217,6 +218,16 @@ export const INTEGRATION_CHANNEL_LIST: IntegrationChannelConfig[] = [
     category: "Calls",
     marketplaceCategory: "calls",
     description: "AI phone line, inbound and outbound calls via Twilio",
+    icon: VoiceIcon,
+    available: true,
+  },
+  {
+    id: "internet_phone",
+    label: "Internet Phone",
+    category: "Calls",
+    marketplaceCategory: "calls",
+    description:
+      "Browser WebRTC phone with public link, QR code, and printable PDF",
     icon: VoiceIcon,
     available: true,
   },
