@@ -76,20 +76,20 @@
     "@img/sharp-linux-x64": "^0.35.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
-    "dotenv": "^16.4.7",
-    "eslint": "^9",
-    "eslint-config-next": "^15.5.23",
+    "dotenv": "^17.4.2",
+    "eslint": "^10",
+    "eslint-config-next": "^16.3.0",
     "patch-package": "^8.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
-    "typescript": "^5",
-    "vitest": "^3.2.4"
+    "typescript": "^7",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "esbuild": "^0.25.12",
