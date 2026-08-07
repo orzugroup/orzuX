@@ -1,8 +1,8 @@
 import "server-only";
 
+import ExcelJS from "exceljs";
 import mammoth from "mammoth";
 import { extractText, getDocumentProxy } from "unpdf";
-import * as XLSX from "xlsx";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -26,19 +26,58 @@ async function extractDocxText(buffer: Buffer): Promise<string> {
   return result.value;
 }
 
-function extractSpreadsheetText(buffer: Buffer): string {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const parts: string[] = [];
+function cellToString(value: ExcelJS.CellValue): string {
+  if (value == null) {
+    return "";
+  }
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
 
-    const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
-    if (csv.trim()) {
-      parts.push(`Sheet: ${sheetName}\n${csv}`);
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "object") {
+    if ("text" in value && typeof value.text === "string") {
+      return value.text;
+    }
+
+    if ("result" in value && value.result != null) {
+      return String(value.result);
+    }
+
+    if ("richText" in value && Array.isArray(value.richText)) {
+      return value.richText.map((part) => part.text).join("");
     }
   }
+
+  return String(value);
+}
+
+async function extractSpreadsheetText(buffer: Buffer): Promise<string> {
+  const workbook = new ExcelJS.Workbook();
+  // exceljs typings expect a browser Buffer; Node Buffer is compatible at runtime.
+  await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+  const parts: string[] = [];
+
+  workbook.eachSheet((sheet) => {
+    const rows: string[] = [];
+
+    sheet.eachRow((row) => {
+      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+      const cells = values.map((value) => cellToString(value as ExcelJS.CellValue));
+
+      if (cells.some((cell) => cell.trim().length > 0)) {
+        rows.push(cells.join(","));
+      }
+    });
+
+    if (rows.length > 0) {
+      parts.push(`Sheet: ${sheet.name}\n${rows.join("\n")}`);
+    }
+  });
 
   return parts.join("\n\n");
 }
@@ -63,8 +102,8 @@ export async function extractTextFromDocument(
       text = await extractPdfText(buffer);
     } else if (ext === ".docx") {
       text = await extractDocxText(buffer);
-    } else if (ext === ".xlsx" || ext === ".xls") {
-      text = extractSpreadsheetText(buffer);
+    } else if (ext === ".xlsx") {
+      text = await extractSpreadsheetText(buffer);
     } else if (
       ext === ".txt" ||
       ext === ".md" ||
