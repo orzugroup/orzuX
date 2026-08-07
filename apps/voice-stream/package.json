@@ -8,8 +8,8 @@
     "dev": "tsx watch src/server.ts"
   },
   "dependencies": {
-    "tsx": "^4.22.3",
-    "ws": "^8.18.3"
+    "tsx": "^4.23.5",
+    "ws": "^8.21.2"
   },
   "devDependencies": {
     "@types/node": "^20",
