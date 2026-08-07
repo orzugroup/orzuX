@@ -24,7 +24,7 @@ import { streamElevenLabsPcm } from "./elevenlabs-pcm.js";
 import type { RuntimeAiKeyProvider } from "./runtime-keys.js";
 
 /** Ignore echo / barge-in for a short window after AI finishes speaking. */
-const ECHO_GUARD_MS = 700;
+const ECHO_GUARD_MS = 450;
 const HUMAN_REQUEST_RE =
   /\b(human|agent|manager|operator|person|сотрудник|менеджер|человек|оператор)\b/i;
 
@@ -54,6 +54,8 @@ export class LiveKitVoiceAgentSession {
   /** PCM buffered before Deepgram is ready (context load race). */
   private pendingPcm: Int16Array[] = [];
   private static readonly MAX_PENDING_PCM_CHUNKS = 250;
+  /** User speech heard while AI was talking — answer after TTS finishes. */
+  private pendingUserText: string | null = null;
 
   constructor(
     private readonly payload: JoinPayload,
@@ -312,10 +314,34 @@ export class LiveKitVoiceAgentSession {
 
   private async handleUserTranscript(text: string): Promise<void> {
     if (this.closed || this.muted || this.turnInFlight) return;
-    if (this.shouldIgnoreInboundSpeech()) return;
 
     const cleaned = text.trim();
     if (!cleaned) return;
+
+    // Do not drop speech over the (often slow) opening TTS — queue it.
+    if (this.shouldIgnoreInboundSpeech()) {
+      this.pendingUserText = this.pendingUserText
+        ? `${this.pendingUserText} ${cleaned}`
+        : cleaned;
+      console.info("[livekit-voice-agent] queued transcript during AI speech", {
+        callId: this.payload.callId,
+        text: cleaned.slice(0, 160),
+      });
+      return;
+    }
+
+    await this.processUserTurn(cleaned);
+  }
+
+  private async flushPendingUserText(): Promise<void> {
+    const pending = this.pendingUserText?.trim() || null;
+    this.pendingUserText = null;
+    if (!pending || this.closed || this.muted || this.turnInFlight) return;
+    await this.processUserTurn(pending);
+  }
+
+  private async processUserTurn(cleaned: string): Promise<void> {
+    if (this.closed || this.muted || this.turnInFlight) return;
 
     console.info("[livekit-voice-agent] transcript", {
       callId: this.payload.callId,
@@ -364,6 +390,8 @@ export class LiveKitVoiceAgentSession {
       await this.speak(fallback);
     } finally {
       this.turnInFlight = false;
+      // Nested speech over the reply — handle after this turn settles.
+      void this.flushPendingUserText();
     }
   }
 
@@ -406,6 +434,8 @@ export class LiveKitVoiceAgentSession {
         this.ttsAbort = null;
       }
       this.echoGuardUntil = Date.now() + ECHO_GUARD_MS;
+      // Answer anything the caller said while the AI was talking.
+      void this.flushPendingUserText();
     }
   }
 }

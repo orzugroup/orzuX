@@ -694,7 +694,13 @@ export async function updateInternetPhoneCallLifecycle(input: {
     case "ai_failed":
       await supabase
         .from("internet_phone_calls")
-        .update({ ai_status: "failed", status: "active" })
+        .update({
+          ai_status: "failed",
+          status: "ended",
+          ended_at: now,
+          ended_reason: "failed",
+          ai_left_at: now,
+        })
         .eq("id", input.callId)
         .is("ended_at", null);
       break;
