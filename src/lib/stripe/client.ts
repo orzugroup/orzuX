@@ -19,7 +19,8 @@ export function getStripeClient(): Stripe {
 
   if (!stripeClient) {
     stripeClient = new Stripe(secretKey, {
-      apiVersion: "2026-05-27.dahlia",
+      // Always match the installed stripe package's pinned LatestApiVersion.
+      apiVersion: Stripe.API_VERSION,
     });
   }
 

@@ -92,7 +92,7 @@ async function resolveStripeSecretKey(): Promise<string> {
 
 async function getStripeClient(): Promise<Stripe> {
   const secretKey = await resolveStripeSecretKey();
-  return new Stripe(secretKey, { apiVersion: "2026-05-27.dahlia" });
+  return new Stripe(secretKey, { apiVersion: Stripe.API_VERSION });
 }
 
 export async function listAdminPlatformPlans(): Promise<PlatformPlanRecord[]> {
