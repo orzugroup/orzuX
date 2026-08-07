@@ -1,5 +1,6 @@
 # OrzuAI LiveKit Internet Phone voice agent (Railway service).
-# Deploy as a second Railway service from repo root.
+# Deploy from repo root so npm workspaces resolve.
+# Set Railway Config File path to: apps/livekit-voice-agent/railway.toml
 
 [build]
 builder = "RAILPACK"
@@ -7,12 +8,14 @@ watchPatterns = [
   "apps/livekit-voice-agent/**",
   "package.json",
   "package-lock.json",
-  "apps/livekit-voice-agent/railway.toml"
+  "apps/livekit-voice-agent/railway.toml",
+  "apps/livekit-voice-agent/railpack.json"
 ]
 
 [deploy]
-startCommand = "node --import tsx apps/livekit-voice-agent/src/server.ts"
+startCommand = "npm run start --workspace=@orzu/livekit-voice-agent"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+

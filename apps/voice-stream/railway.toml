@@ -1,9 +1,16 @@
 # OrzuAI voice-stream service (Twilio Media Streams WebSocket worker).
 # Deploy from repo root so npm workspaces resolve @orzu/voice-stream dependencies.
+# Set Railway Config File path to: apps/voice-stream/railway.toml
 
 [build]
 builder = "RAILPACK"
-watchPatterns = ["apps/voice-stream/**", "package.json", "package-lock.json", "railway.toml", "railpack.json"]
+watchPatterns = [
+  "apps/voice-stream/**",
+  "package.json",
+  "package-lock.json",
+  "apps/voice-stream/railway.toml",
+  "apps/voice-stream/railpack.json"
+]
 
 [deploy]
 startCommand = "node --import tsx apps/voice-stream/src/server.ts"
