@@ -11,6 +11,18 @@ updates:
         dependency-type: production
       development-dependencies:
         dependency-type: development
+    # Next.js 15 still needs the TS JS compiler API (typescript@5/6) and
+    # eslint-config-next aligned with next@15. Do not let Dependabot jump these
+    # majors until we deliberately upgrade the Next stack.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
     labels:
       - dependencies
       - security
