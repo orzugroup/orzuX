@@ -1,36 +1,37 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
 
-import { signInWithGoogleAction } from "@/features/auth/actions/sign-in-with-google";
-import type { GoogleSignInResult } from "@/types/auth.types";
+import { AUTH_ROUTES } from "@/constants/routes";
+import { getSafeRedirectPath } from "@/utils/auth-redirect";
 
 type UseGoogleSignInOptions = {
   nextPath?: string;
   onError?: (message: string) => void;
 };
 
+/**
+ * Navigate to /auth/google so PKCE verifier cookies are set on the
+ * same HTTP redirect response that sends the browser to Google.
+ * Do not start OAuth from a Server Action — that breaks first-attempt login.
+ */
 export function useGoogleSignIn(options: UseGoogleSignInOptions = {}) {
   const { nextPath, onError } = options;
   const [isLoading, setIsLoading] = useState(false);
 
-  const signIn = useCallback(async (): Promise<GoogleSignInResult> => {
+  const signIn = useCallback(async () => {
     setIsLoading(true);
-
     try {
-      const result = await signInWithGoogleAction(nextPath);
-
-      if (!result.success) {
-        onError?.(result.error);
-        toast.error(result.error);
-        return result;
-      }
-
-      window.location.assign(result.redirectUrl);
-      return result;
-    } finally {
+      const url = new URL(AUTH_ROUTES.google, window.location.origin);
+      url.searchParams.set("next", getSafeRedirectPath(nextPath));
+      window.location.assign(url.toString());
+    } catch (error) {
       setIsLoading(false);
+      onError?.(
+        error instanceof Error
+          ? error.message
+          : "Unable to start Google sign-in.",
+      );
     }
   }, [nextPath, onError]);
 

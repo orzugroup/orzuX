@@ -5,6 +5,10 @@ import { passwordPolicyMessage } from "@/features/auth/password-strength";
 
 export const authCallbackQuerySchema = z.object({
   code: z.string().trim().min(1).optional(),
+  token_hash: z.string().trim().min(1).optional(),
+  type: z
+    .enum(["signup", "email", "recovery", "invite", "magiclink"])
+    .optional(),
   next: z.string().trim().optional(),
   error: z.string().trim().optional(),
   error_description: z.string().trim().optional(),

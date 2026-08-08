@@ -19,6 +19,7 @@ export const DOCS_ROUTES = {
 export const AUTH_ROUTES = {
   callback: "/auth/callback",
   confirm: "/auth/confirm",
+  google: "/auth/google",
   authCodeError: "/auth/auth-code-error",
   login: "/auth/login",
   logout: "/auth/logout",

@@ -18,6 +18,7 @@ export function isPublicAuthFlowRoute(pathname: string): boolean {
   return (
     pathname === AUTH_ROUTES.callback ||
     pathname === AUTH_ROUTES.confirm ||
+    pathname === AUTH_ROUTES.google ||
     pathname === AUTH_ROUTES.verifySuccess ||
     pathname === AUTH_ROUTES.authCodeError ||
     pathname === AUTH_ROUTES.registerConfirmation ||

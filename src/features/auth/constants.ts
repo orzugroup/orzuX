@@ -52,7 +52,8 @@ export const VERIFICATION_MESSAGES = {
     "Your email has been verified. You now have access to the dashboard.",
   resendSuccess: "Verification email sent. Check your inbox.",
   resendFailed: "Unable to resend verification email. Please try again.",
-  invalidLink: "This verification link is invalid or has expired.",
+  invalidLink:
+    "This verification link is invalid or has expired. Request a new email and use the 6-digit code from the message.",
 } as const;
 
 export const PASSWORD_RESET_MESSAGES = {

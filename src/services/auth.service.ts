@@ -58,6 +58,10 @@ import {
   verifyRecoveryOtpSchema,
 } from "@/types/auth.types";
 import type { AuthActionResult } from "@/types/auth.types";
+import {
+  buildAuthConfirmRedirectUrl,
+  buildVerificationLinkFromGenerateLink,
+} from "@/utils/auth-verification-link";
 import { buildAuthCallbackUrl } from "@/utils/auth";
 
 function missingConfigRegistrationError(): RegistrationResult {
@@ -160,7 +164,7 @@ export async function registerWithEmail(
   }
 
   const admin = createAdminClient();
-  const redirectTo = buildAuthCallbackUrl(APP_ROUTES.dashboard);
+  const redirectTo = buildAuthConfirmRedirectUrl(APP_ROUTES.dashboard);
 
   const businessName = parsed.data.businessName?.trim();
 
@@ -186,7 +190,11 @@ export async function registerWithEmail(
     };
   }
 
-  const verificationUrl = data.properties.action_link;
+  const verificationUrl =
+    buildVerificationLinkFromGenerateLink(data.properties, {
+      nextPath: APP_ROUTES.dashboard,
+      fallbackType: "signup",
+    }) ?? data.properties.action_link?.trim();
   const verificationCode = data.properties.email_otp;
 
   if (!verificationUrl) {
@@ -235,6 +243,18 @@ export async function registerWithEmail(
   };
 }
 
+function formatVerificationAuthError(message: string): string {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("expired") ||
+    normalized.includes("invalid") ||
+    normalized.includes("token")
+  ) {
+    return VERIFICATION_MESSAGES.invalidLink;
+  }
+  return message;
+}
+
 export async function verifyEmailWithTokenHash(
   tokenHash: string,
   type: EmailOtpType,
@@ -256,7 +276,9 @@ export async function verifyEmailWithTokenHash(
   if (error) {
     return {
       success: false,
-      error: error.message || VERIFICATION_MESSAGES.invalidLink,
+      error: formatVerificationAuthError(
+        error.message || VERIFICATION_MESSAGES.invalidLink,
+      ),
     };
   }
 
@@ -290,25 +312,42 @@ export async function verifyEmailWithOtpCode(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({
-    email: parsed.data.email,
-    token: parsed.data.code,
-    type: "signup",
-  });
 
-  if (error) {
-    return {
-      success: false,
-      error: {
-        code: "VERIFICATION_FAILED",
-        message: error.message || REGISTRATION_MESSAGES.otpInvalid,
-      },
-    };
+  const otpTypes: EmailOtpType[] = ["signup", "invite", "magiclink", "email"];
+  let lastMessage: string = REGISTRATION_MESSAGES.otpInvalid;
+
+  for (const type of otpTypes) {
+    const { error } = await supabase.auth.verifyOtp({
+      email: parsed.data.email,
+      token: parsed.data.code,
+      type,
+    });
+
+    if (!error) {
+      return {
+        success: true,
+        data: { email: parsed.data.email },
+      };
+    }
+
+    lastMessage = error.message || lastMessage;
+
+    const normalized = error.message.toLowerCase();
+    if (
+      !normalized.includes("invalid") &&
+      !normalized.includes("expired") &&
+      !normalized.includes("token")
+    ) {
+      break;
+    }
   }
 
   return {
-    success: true,
-    data: { email: parsed.data.email },
+    success: false,
+    error: {
+      code: "VERIFICATION_FAILED",
+      message: lastMessage || REGISTRATION_MESSAGES.otpInvalid,
+    },
   };
 }
 
@@ -381,7 +420,7 @@ export async function resendVerificationEmail(
   }
 
   const admin = createAdminClient();
-  const redirectTo = buildAuthCallbackUrl(APP_ROUTES.dashboard);
+  const redirectTo = buildAuthConfirmRedirectUrl(APP_ROUTES.dashboard);
 
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
@@ -413,7 +452,11 @@ export async function resendVerificationEmail(
     };
   }
 
-  const verificationUrl = data.properties.action_link;
+  const verificationUrl =
+    buildVerificationLinkFromGenerateLink(data.properties, {
+      nextPath: APP_ROUTES.dashboard,
+      fallbackType: "magiclink",
+    }) ?? data.properties.action_link?.trim();
   const verificationCode = data.properties.email_otp;
 
   if (!verificationUrl) {

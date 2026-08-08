@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { APP_ROUTES, AUTH_ROUTES } from "@/constants/routes";
+import { VERIFICATION_MESSAGES } from "@/features/auth/constants";
 import { createClient } from "@/lib/supabase/server";
 import {
   hasOnboardingDripAnchor,
@@ -90,8 +91,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { code, next, error, error_description: errorDescription } =
-    query.data;
+  const {
+    code,
+    next,
+    error,
+    error_description: errorDescription,
+    token_hash: tokenHash,
+    type: otpType,
+  } = query.data;
 
   if (error) {
     const errorUrl = new URL(AUTH_ROUTES.authCodeError, request.url);
@@ -104,6 +111,16 @@ export async function GET(request: NextRequest) {
   }
 
   if (!code) {
+    if (tokenHash && otpType) {
+      const confirmUrl = new URL(AUTH_ROUTES.confirm, request.url);
+      confirmUrl.searchParams.set("token_hash", tokenHash);
+      confirmUrl.searchParams.set("type", otpType);
+      if (next) {
+        confirmUrl.searchParams.set("next", next);
+      }
+      return NextResponse.redirect(confirmUrl);
+    }
+
     return NextResponse.redirect(
       new URL(AUTH_ROUTES.authCodeError, request.url),
     );
@@ -115,7 +132,10 @@ export async function GET(request: NextRequest) {
 
   if (exchangeError) {
     const errorUrl = new URL(AUTH_ROUTES.authCodeError, request.url);
-    errorUrl.searchParams.set("message", exchangeError.message);
+    const message = exchangeError.message.toLowerCase().includes("expired")
+      ? VERIFICATION_MESSAGES.invalidLink
+      : exchangeError.message;
+    errorUrl.searchParams.set("message", message);
 
     return NextResponse.redirect(errorUrl);
   }

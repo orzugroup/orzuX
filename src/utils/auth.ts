@@ -1,5 +1,6 @@
 import { APP_ROUTES, AUTH_ROUTES } from "@/constants/routes";
 import { getAppUrl } from "@/lib/env";
+import { buildAuthConfirmRedirectUrl } from "@/utils/auth-verification-link";
 
 export {
   isAuthEntryRoute,
@@ -25,8 +26,10 @@ export function buildAuthCallbackUrl(
 export function buildAuthConfirmUrl(
   nextPath: string = APP_ROUTES.dashboard,
 ): string {
-  const confirmUrl = new URL(AUTH_ROUTES.confirm, getAppUrl());
-  confirmUrl.searchParams.set("next", nextPath);
-
-  return confirmUrl.toString();
+  return buildAuthConfirmRedirectUrl(nextPath);
 }
+
+export {
+  buildAuthConfirmRedirectUrl,
+  buildVerificationLinkFromGenerateLink,
+} from "@/utils/auth-verification-link";
