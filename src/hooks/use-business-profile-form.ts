@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createBusinessAction } from "@/features/business/actions/create-business";
 import { updateBusinessAction } from "@/features/business/actions/update-business";
 import { BUSINESS_MESSAGES } from "@/features/business/constants";
+import { ONBOARDING_MESSAGES } from "@/features/onboarding/constants";
 import type {
   BusinessProfileData,
   BusinessProfileInput,
@@ -44,6 +45,12 @@ export function useBusinessProfileForm({
               ? BUSINESS_MESSAGES.updateSuccess
               : BUSINESS_MESSAGES.createSuccess,
           );
+
+          if (!isEditMode && input.email.trim()) {
+            toast.message(ONBOARDING_MESSAGES.businessEmailSentToast, {
+              description: input.email.trim(),
+            });
+          }
 
           if (isEditMode) {
             onUpdateSuccess?.(result.data);

@@ -42,6 +42,7 @@ import {
   getBusinessLogoExtension,
   mapBusinessToProfile,
 } from "@/utils/business";
+import { sendBusinessEmailRegisteredNotification } from "@/services/business-email-notification.service";
 
 function missingConfigError(): {
   success: false;
@@ -124,6 +125,16 @@ function mapPayloadToRow(payload: BusinessPayload) {
   return {
     business_name: payload.businessName,
     business_description: emptyStringToNull(payload.businessDescription),
+    business_sector: emptyStringToNull(payload.businessSector),
+    business_sector_custom:
+      payload.businessSector === "other"
+        ? emptyStringToNull(payload.businessSectorCustom)
+        : null,
+    business_type: emptyStringToNull(payload.businessType),
+    business_type_custom:
+      payload.businessType === "other"
+        ? emptyStringToNull(payload.businessTypeCustom)
+        : null,
     phone: emptyStringToNull(payload.phone),
     email: emptyStringToNull(payload.email),
     address: emptyStringToNull(payload.address),
@@ -212,6 +223,14 @@ export async function createBusiness(
   await bootstrapBusinessDefaults(data.id);
   revalidateBusinessPaths();
 
+  if (parsed.data.email.trim()) {
+    void sendBusinessEmailRegisteredNotification({
+      businessId: data.id,
+      businessName: parsed.data.businessName,
+      businessEmail: parsed.data.email,
+    });
+  }
+
   return {
     success: true,
     data: mapBusinessToProfile(data),
@@ -255,6 +274,7 @@ export async function updateBusiness(
   }
 
   const supabase = await createClient();
+  const previousEmail = existingBusiness.email?.trim().toLowerCase() ?? "";
   const { data, error } = await supabase
     .from("businesses")
     .update(mapPayloadToRow(parsed.data))
@@ -274,6 +294,15 @@ export async function updateBusiness(
   }
 
   revalidateBusinessPaths();
+
+  const nextEmail = parsed.data.email.trim().toLowerCase();
+  if (nextEmail.includes("@") && nextEmail !== previousEmail) {
+    void sendBusinessEmailRegisteredNotification({
+      businessId: data.id,
+      businessName: parsed.data.businessName,
+      businessEmail: parsed.data.email,
+    });
+  }
 
   return {
     success: true,

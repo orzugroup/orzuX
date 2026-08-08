@@ -100,6 +100,7 @@ import type { ExecutorPlan } from "@/types/agent-executor.types";
 import { orchestratorResponseToExecutorPlan } from "@/types/ai-orchestrator.types";
 import { processSalesAgentRules } from "@/services/sales-agent.service";
 import { retrieveKnowledgeForMessage } from "@/services/knowledge-retrieval.service";
+import { buildBusinessProfileKnowledgeFallback } from "@/services/business-profile-context.service";
 import {
   formatConversationSummaryForSystemPrompt,
   loadConversationMemory,
@@ -213,6 +214,33 @@ function mapKnowledgeForLlm(
     content: entry.content,
     category: entry.category ?? "General",
   }));
+}
+
+async function resolveKnowledgeContextForReply(
+  prep: AutoReplyPrep,
+): Promise<ReturnType<typeof mapKnowledgeForLlm>> {
+  const mapped = mapKnowledgeForLlm(prep.knowledgeEntries);
+  if (mapped.length > 0) {
+    return mapped;
+  }
+
+  const fallback = await buildBusinessProfileKnowledgeFallback(
+    prep.businessId,
+    prep.admin,
+  );
+  if (!fallback) {
+    return mapped;
+  }
+
+  return [
+    {
+      id: "business-profile",
+      citation: "BP-1",
+      title: "Business profile",
+      content: fallback,
+      category: "Profile",
+    },
+  ];
 }
 
 async function buildFastBookingReplyContext(input: {
@@ -1012,7 +1040,7 @@ export async function generateFastAssistantReply(input: {
     systemPrompt: voice.systemPrompt,
     language: voice.language,
     userMessage: prep.clientMessage,
-    knowledgeContext: mapKnowledgeForLlm(prep.knowledgeEntries),
+    knowledgeContext: await resolveKnowledgeContextForReply(prep),
     conversationHistory: prep.conversationHistory,
   });
 
@@ -1329,7 +1357,10 @@ export async function runAutoReplyBackgroundOrchestration(input: {
               `- ${entry.title}: ${entry.content.replace(/\s+/g, " ").slice(0, 500)}`,
           )
           .join("\n")
-      : undefined;
+      : await buildBusinessProfileKnowledgeFallback(
+          input.businessId,
+          input.admin,
+        );
   const memorySummary = conversationMemory?.aiSummary?.trim() || undefined;
   const runtimeNotes = await buildOrchestratorRuntimeNotes({
     admin: input.admin,

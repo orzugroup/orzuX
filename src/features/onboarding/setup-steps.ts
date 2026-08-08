@@ -16,7 +16,7 @@ export function buildSetupSteps(progress: OnboardingProgress): SetupStepItem[] {
     {
       id: "business",
       label: "Create business profile",
-      done: progress.hasBusiness,
+      done: progress.hasBusinessProfile,
       required: true,
       href: DASHBOARD_ROUTES.onboarding,
     },
@@ -24,20 +24,20 @@ export function buildSetupSteps(progress: OnboardingProgress): SetupStepItem[] {
       id: "channel",
       label: "Connect a messaging channel",
       done: progress.hasConnectedChannel,
-      required: true,
-      href: `${DASHBOARD_ROUTES.onboarding}?step=2`,
+      required: false,
+      href: DASHBOARD_ROUTES.integrations,
     },
     {
       id: "ai",
       label: "Enable AI Assistant",
       done: progress.hasAiEnabled,
-      required: true,
+      required: false,
       href: progress.connectedChannel
         ? buildAiAssistantHref({
             section: "assistant",
             channel: progress.connectedChannel,
           })
-        : `${DASHBOARD_ROUTES.onboarding}?step=3`,
+        : `${DASHBOARD_ROUTES.onboarding}?view=continue`,
     },
     {
       id: "knowledge",
@@ -53,12 +53,19 @@ export function getRequiredSetupSteps(steps: SetupStepItem[]): SetupStepItem[] {
   return steps.filter((step) => step.required);
 }
 
-export function getSetupProgressLabel(): {
+export function getSetupProgressLabel(progress: OnboardingProgress): {
   title: string;
   description: string;
 } {
+  if (!progress.hasBusinessProfile) {
+    return {
+      title: ONBOARDING_MESSAGES.stepBusinessTitle,
+      description: ONBOARDING_MESSAGES.pageDescription,
+    };
+  }
+
   return {
     title: ONBOARDING_MESSAGES.checklistTitle,
-    description: ONBOARDING_MESSAGES.checklistDescription,
+    description: ONBOARDING_MESSAGES.incompleteSetupBanner,
   };
 }

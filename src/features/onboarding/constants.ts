@@ -1,41 +1,69 @@
 export const ONBOARDING_MESSAGES = {
-  pageTitle: "Set up OrzuX",
+  pageTitle: "Create your business profile",
   pageDescription:
-    "Complete these steps to launch your multi-channel AI assistant.",
+    "This is the only required step. You can use the dashboard right after — connect channels and AI whenever you want.",
   progressLabel: "Setup progress",
-  stepBusinessTitle: "Create your business",
+  mandatoryBadge: "Required",
+  profileCompleteBadge: "Business profile saved",
+  optionalBadge: "Optional",
+  stepBusinessTitle: "Business profile",
   stepBusinessDescription:
-    "Add your business name and contact details. This powers AI replies and customer context.",
-  stepChannelTitle: "Connect a channel (optional)",
+    "Name, industry, type, and contact email. OrzuX AI reads this when you have not added a knowledge base yet.",
+  stepContinueTitle: "Setup is not finished yet",
+  stepContinueDescription:
+    "Your profile is saved and the dashboard is open. Finish optional steps when you are ready.",
+  stepChannelTitle: "Connect a messaging channel",
   stepChannelDescription:
-    "Connect a customer channel — WhatsApp, Telegram, Instagram, email, or website — to receive and reply to messages. This is optional: you can connect channels anytime from Integrations.",
-  stepChannelOptionalHint:
-    "You don't need to connect a channel now. Skip this step and add one later from Integrations.",
-  stepKnowledgeTitle: "Add knowledge (optional)",
+    "WhatsApp, Telegram, Instagram, email, or website chat — one inbox for all customer messages.",
+  stepKnowledgeTitle: "Knowledge base",
   stepKnowledgeDescription:
-    "Optional: add FAQs, pricing, or hours so the AI can answer accurately. You can do this anytime from Knowledge Base.",
-  stepKnowledgeAdd: "Add knowledge entry",
-  stepAiTitle: "Enable AI Assistant",
-  stepAiDescription:
-    "Turn on auto-replies for your connected channel. Optional: add knowledge and run a quick test before going live.",
-  stepAiEnabled: "AI auto-replies are on. You're ready to go live.",
-  stepAiCustomize: "Customize assistant",
+    "Add FAQs, pricing, and hours so AI replies stay accurate.",
+  stepAiTitle: "AI Assistant",
+  stepAiDescription: "Turn on auto-replies for your connected channels.",
   stepAiOpenSettings: "Open AI Assistant",
-  stepTestTitle: "Quick test (optional)",
-  stepTestDescription: "Preview how the AI would reply to a sample message.",
-  stepTestPlaceholder: "e.g. What are your opening hours?",
-  stepTestButton: "Generate test reply",
+  stepAiCustomize: "Customize assistant",
+  stepKnowledgeAdd: "Add knowledge",
   stepFinish: "Go to dashboard",
+  goToDashboard: "Go to dashboard",
+  backToDashboard: "Back to dashboard",
   back: "Back",
-  continue: "Continue",
-  skip: "Skip for now",
-  skipSetup: "Skip setup",
-  checklistTitle: "Setup progress",
-  checklistDescription: "Complete required steps to launch your AI inbox.",
+  continue: "Continue setup",
+  skipSetup: "Skip for now",
+  checklistTitle: "Setup not finished",
+  checklistDescription:
+    "Required profile is done. Optional steps help you get more from OrzuX.",
+  incompleteSetupBanner:
+    "You can work in the dashboard now. These steps are optional — complete them to unlock the full AI experience.",
+  openStep: "Open",
+  sectorLabel: "Industry / sector",
+  sectorCustomLabel: "Describe your sector",
+  sectorCustomPlaceholder: "e.g. Dental clinic, Auto repair",
+  typeLabel: "Business type",
+  typeCustomLabel: "Describe your business type",
+  typeCustomPlaceholder: "e.g. Family-owned workshop",
+  businessEmailHint:
+    "We send a short confirmation to this address that it was linked as your business email on OrzuX.",
+  businessEmailSentToast: "Confirmation email sent",
+  aiFallbackHint:
+    "Until you add a knowledge base, the AI uses this profile to answer customers.",
+  optionalRoadmapHint:
+    "Nothing here is required to use OrzuX. You can return from the dashboard anytime.",
+  editProfileTitle: "Edit business profile",
+  sectionIdentity: "Identity",
+  sectionIndustry: "Industry & type",
+  sectionContact: "Contact",
+  sectionOptionalDetails: "Optional details",
+  submitCreate: "Save business profile",
+  submitUpdate: "Save changes",
+  optionalStepsRemaining: (count: number) =>
+    count === 1
+      ? "1 optional step left — finish anytime."
+      : `${count} optional steps left — finish anytime.`,
 } as const;
 
 export const ONBOARDING_STEPS = [
-  { id: "business", label: "Business" },
-  { id: "channel", label: "Channel" },
-  { id: "ai", label: "AI Assistant" },
+  { id: "business", label: "Business profile", required: true },
+  { id: "channel", label: "Channel", required: false },
+  { id: "ai", label: "AI Assistant", required: false },
+  { id: "knowledge", label: "Knowledge", required: false },
 ] as const;

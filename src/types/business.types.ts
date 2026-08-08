@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+import {
+  BUSINESS_SECTOR_OPTIONS,
+  BUSINESS_SECTOR_OTHER,
+  BUSINESS_TYPE_OPTIONS,
+  BUSINESS_TYPE_OTHER,
+} from "@/features/business/sectors";
+
+const sectorValues = BUSINESS_SECTOR_OPTIONS.map((item) => item.value) as [
+  string,
+  ...string[],
+];
+const typeValues = BUSINESS_TYPE_OPTIONS.map((item) => item.value) as [
+  string,
+  ...string[],
+];
+
 const optionalText = (maxLength: number) =>
   z
     .string()
@@ -8,43 +24,85 @@ const optionalText = (maxLength: number) =>
     .optional()
     .transform((value) => value ?? "");
 
-const optionalEmail = z
-  .string()
-  .trim()
-  .max(254)
-  .optional()
-  .transform((value) => value ?? "")
-  .refine(
-    (value) => value === "" || z.string().email().safeParse(value).success,
-    "Enter a valid email address.",
-  );
-
 const optionalWebsite = z
   .string()
+    .trim()
+    .max(2048)
+    .optional()
+    .transform((value) => value ?? "")
+    .refine((value) => {
+      if (value === "") {
+        return true;
+      }
+
+      return z.string().url().safeParse(value).success;
+    }, "Enter a valid website URL.");
+
+const sectorField = z
+  .string()
   .trim()
-  .max(2048)
-  .optional()
-  .transform((value) => value ?? "")
-  .refine((value) => {
-    if (value === "") {
-      return true;
+  .refine(
+    (value) => sectorValues.includes(value),
+    "Select your business sector.",
+  );
+
+const typeField = z
+  .string()
+  .trim()
+  .refine(
+    (value) => typeValues.includes(value),
+    "Select your business type.",
+  );
+
+export const businessProfileSchema = z
+  .object({
+    businessName: z
+      .string()
+      .trim()
+      .min(2, "Business name must be at least 2 characters.")
+      .max(100, "Business name must be at most 100 characters."),
+    businessDescription: z
+      .string()
+      .trim()
+      .min(10, "Describe your business in at least 10 characters.")
+      .max(1000, "Description must be at most 1000 characters."),
+    businessSector: sectorField,
+    businessSectorCustom: optionalText(120),
+    businessType: typeField,
+    businessTypeCustom: optionalText(120),
+    phone: optionalText(30),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Business email is required.")
+      .max(254)
+      .email("Enter a valid business email address."),
+    address: optionalText(200),
+    website: optionalWebsite,
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.businessSector === BUSINESS_SECTOR_OTHER &&
+      data.businessSectorCustom.trim().length < 2
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Describe your sector (at least 2 characters).",
+        path: ["businessSectorCustom"],
+      });
     }
 
-    return z.string().url().safeParse(value).success;
-  }, "Enter a valid website URL.");
-
-export const businessProfileSchema = z.object({
-  businessName: z
-    .string()
-    .trim()
-    .min(2, "Business name must be at least 2 characters.")
-    .max(100, "Business name must be at most 100 characters."),
-  businessDescription: optionalText(1000),
-  phone: optionalText(30),
-  email: optionalEmail,
-  address: optionalText(200),
-  website: optionalWebsite,
-});
+    if (
+      data.businessType === BUSINESS_TYPE_OTHER &&
+      data.businessTypeCustom.trim().length < 2
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Describe your business type (at least 2 characters).",
+        path: ["businessTypeCustom"],
+      });
+    }
+  });
 
 export const createBusinessSchema = businessProfileSchema;
 
@@ -59,6 +117,10 @@ export type UpdateBusinessInput = z.infer<typeof updateBusinessSchema>;
 export type BusinessPayload = {
   businessName: string;
   businessDescription: string;
+  businessSector: string;
+  businessSectorCustom: string;
+  businessType: string;
+  businessTypeCustom: string;
   phone: string;
   email: string;
   address: string;
@@ -89,6 +151,10 @@ export type BusinessProfileData = {
   id: string;
   businessName: string;
   businessDescription: string | null;
+  businessSector: string | null;
+  businessSectorCustom: string | null;
+  businessType: string | null;
+  businessTypeCustom: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;

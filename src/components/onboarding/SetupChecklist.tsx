@@ -12,7 +12,7 @@ import {
 import { DASHBOARD_ROUTES } from "@/constants/routes";
 import { OnboardingProgressRing } from "@/components/onboarding/OnboardingProgressRing";
 import { ONBOARDING_MESSAGES } from "@/features/onboarding/constants";
-import { buildAiAssistantHref } from "@/utils/ai-assistant-url";
+import { buildSetupSteps } from "@/features/onboarding/setup-steps";
 import type { OnboardingProgress } from "@/services/onboarding.service";
 
 type SetupChecklistProps = {
@@ -20,33 +20,12 @@ type SetupChecklistProps = {
 };
 
 export function SetupChecklist({ progress }: SetupChecklistProps) {
-  const items = [
-    {
-      label: "Create business profile",
-      done: progress.hasBusiness,
-      href: DASHBOARD_ROUTES.onboarding,
-    },
-    {
-      label: "Connect a messaging channel",
-      done: progress.hasConnectedChannel,
-      href: `${DASHBOARD_ROUTES.onboarding}?step=2`,
-    },
-    {
-      label: "Add knowledge (optional)",
-      done: progress.hasKnowledgeEntry,
-      href: DASHBOARD_ROUTES.knowledgeBase,
-    },
-    {
-      label: "Enable AI Assistant",
-      done: progress.hasAiEnabled,
-      href: progress.connectedChannel
-        ? buildAiAssistantHref({
-            section: "assistant",
-            channel: progress.connectedChannel,
-          })
-        : DASHBOARD_ROUTES.onboarding,
-    },
-  ];
+  const items = buildSetupSteps(progress).map((step) => ({
+    label: step.label,
+    done: step.done,
+    href: step.href,
+    optional: !step.required,
+  }));
 
   return (
     <Card className="shadow-none">
@@ -59,7 +38,7 @@ export function SetupChecklist({ progress }: SetupChecklistProps) {
           </div>
         </div>
         <Button asChild size="sm">
-          <Link href={DASHBOARD_ROUTES.onboarding}>Resume setup</Link>
+          <Link href={`${DASHBOARD_ROUTES.onboarding}?view=continue`}>Resume setup</Link>
         </Button>
       </CardHeader>
       <CardContent>
@@ -80,6 +59,7 @@ export function SetupChecklist({ progress }: SetupChecklistProps) {
                 }
               >
                 {item.label}
+                {item.optional && !item.done ? " (optional)" : null}
               </Link>
             </li>
           ))}

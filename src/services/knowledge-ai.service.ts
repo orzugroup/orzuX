@@ -1,6 +1,13 @@
 import "server-only";
 
-import { KNOWLEDGE_CATEGORIES, resolveKnowledgeCategory } from "@/features/knowledge-base/categories";
+import {
+  KNOWLEDGE_CATEGORIES,
+  resolveKnowledgeCategory,
+} from "@/features/knowledge-base/categories";
+import {
+  resolveBusinessSectorLabel,
+  resolveBusinessTypeLabel,
+} from "@/features/business/sectors";
 import type { Business } from "@/types/database.types";
 import type { KnowledgeEntryInput } from "@/types/knowledge.types";
 import { knowledgeEntrySchema } from "@/types/knowledge.types";
@@ -18,8 +25,19 @@ function cleanJsonPayload(raw: string): string {
 }
 
 function buildBusinessContext(business: Business): string {
+  const sectorLabel = resolveBusinessSectorLabel(
+    business.business_sector,
+    business.business_sector_custom,
+  );
+  const typeLabel = resolveBusinessTypeLabel(
+    business.business_type,
+    business.business_type_custom,
+  );
+
   return [
     business.business_name ? `Business name: ${business.business_name}` : null,
+    sectorLabel ? `Industry / sector: ${sectorLabel}` : null,
+    typeLabel ? `Business type: ${typeLabel}` : null,
     business.business_description
       ? `Description: ${business.business_description}`
       : null,

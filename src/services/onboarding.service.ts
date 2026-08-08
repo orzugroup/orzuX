@@ -1,29 +1,40 @@
 import "server-only";
 
+import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseEnv } from "@/lib/env";
 import {
   MESSAGING_INTEGRATION_CHANNELS,
   type MessagingIntegrationChannelId,
 } from "@/features/integrations";
-import { hasSupabaseEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import {
   getChannelAiSettings,
   getChannelConnectionStatuses,
 } from "@/services/channel-workspace.service";
+import { isBusinessProfileComplete } from "@/utils/business";
+import type { Business } from "@/types/database.types";
 
 export type OnboardingProgress = {
+  /** Required onboarding step — full business profile */
+  hasBusinessProfile: boolean;
   hasBusiness: boolean;
   hasConnectedChannel: boolean;
   hasKnowledgeEntry: boolean;
   hasAiEnabled: boolean;
   connectedChannel: MessagingIntegrationChannelId | null;
   percentComplete: number;
+  /** All recommended optional steps finished */
   isComplete: boolean;
+  /** Legacy alias for recommended step index in optional roadmap */
   recommendedStep: number;
 };
 
-const REQUIRED_STEP_COUNT = 3;
+const OPTIONAL_STEP_WEIGHTS = {
+  channel: 25,
+  ai: 35,
+  knowledge: 15,
+} as const;
+const PROFILE_WEIGHT = 25;
 
 function getFirstConnectedChannel(
   statuses: Awaited<ReturnType<typeof getChannelConnectionStatuses>>,
@@ -38,9 +49,11 @@ function getFirstConnectedChannel(
 }
 
 async function buildOnboardingProgress(
-  businessId: string,
+  business: Business,
   knowledgeCount: number,
 ): Promise<OnboardingProgress> {
+  const businessId = business.id;
+  const hasBusinessProfile = isBusinessProfileComplete(business);
   const channelStatuses = await getChannelConnectionStatuses(businessId);
   const connectedChannel = getFirstConnectedChannel(channelStatuses);
   const hasConnectedChannel = connectedChannel !== null;
@@ -51,26 +64,32 @@ async function buildOnboardingProgress(
       : null;
   const hasAiEnabled = channelAiSettings?.aiEnabled === true;
 
-  let requiredDone = 1;
-  if (hasConnectedChannel) requiredDone += 1;
-  if (hasAiEnabled) requiredDone += 1;
+  let percentComplete = 0;
+  if (hasBusinessProfile) percentComplete += PROFILE_WEIGHT;
+  if (hasConnectedChannel) percentComplete += OPTIONAL_STEP_WEIGHTS.channel;
+  if (hasAiEnabled) percentComplete += OPTIONAL_STEP_WEIGHTS.ai;
+  if (hasKnowledgeEntry) percentComplete += OPTIONAL_STEP_WEIGHTS.knowledge;
 
-  const isComplete = hasConnectedChannel && hasAiEnabled;
-  const percentComplete = isComplete
-    ? 100
-    : Math.round((requiredDone / REQUIRED_STEP_COUNT) * 100);
+  const isComplete =
+    hasBusinessProfile &&
+    hasConnectedChannel &&
+    hasAiEnabled &&
+    hasKnowledgeEntry;
 
   let recommendedStep = 1;
-  if (!hasConnectedChannel) {
+  if (!hasBusinessProfile) {
+    recommendedStep = 1;
+  } else if (!hasConnectedChannel) {
     recommendedStep = 2;
   } else if (!hasAiEnabled) {
     recommendedStep = 3;
   } else {
-    recommendedStep = 3;
+    recommendedStep = 4;
   }
 
   return {
-    hasBusiness: true,
+    hasBusinessProfile,
+    hasBusiness: hasBusinessProfile,
     hasConnectedChannel,
     hasKnowledgeEntry,
     hasAiEnabled,
@@ -81,20 +100,27 @@ async function buildOnboardingProgress(
   };
 }
 
+async function loadBusinessRow(businessId: string): Promise<Business | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("businesses")
+    .select("*")
+    .eq("id", businessId)
+    .maybeSingle();
+
+  return data ?? null;
+}
+
 export async function getOnboardingProgress(
   businessId: string,
 ): Promise<OnboardingProgress> {
   if (!hasSupabaseEnv()) {
-    return {
-      hasBusiness: true,
-      hasConnectedChannel: false,
-      hasKnowledgeEntry: false,
-      hasAiEnabled: false,
-      connectedChannel: null,
-      percentComplete: 33,
-      isComplete: false,
-      recommendedStep: 2,
-    };
+    return getEmptyOnboardingProgress();
+  }
+
+  const business = await loadBusinessRow(businessId);
+  if (!business) {
+    return getEmptyOnboardingProgress();
   }
 
   const supabase = await createClient();
@@ -103,7 +129,7 @@ export async function getOnboardingProgress(
     .select("id", { count: "exact", head: true })
     .eq("business_id", businessId);
 
-  return buildOnboardingProgress(businessId, knowledgeResult.count ?? 0);
+  return buildOnboardingProgress(business, knowledgeResult.count ?? 0);
 }
 
 /** Service-role onboarding check for cron jobs and background email logic. */
@@ -115,16 +141,27 @@ export async function getOnboardingProgressForSystem(
   }
 
   const admin = createAdminClient();
+  const { data: business } = await admin
+    .from("businesses")
+    .select("*")
+    .eq("id", businessId)
+    .maybeSingle();
+
+  if (!business) {
+    return getEmptyOnboardingProgress();
+  }
+
   const knowledgeResult = await admin
     .from("knowledge_base")
     .select("id", { count: "exact", head: true })
     .eq("business_id", businessId);
 
-  return buildOnboardingProgress(businessId, knowledgeResult.count ?? 0);
+  return buildOnboardingProgress(business, knowledgeResult.count ?? 0);
 }
 
 export function getEmptyOnboardingProgress(): OnboardingProgress {
   return {
+    hasBusinessProfile: false,
     hasBusiness: false,
     hasConnectedChannel: false,
     hasKnowledgeEntry: false,

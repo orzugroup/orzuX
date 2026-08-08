@@ -131,6 +131,10 @@ export type Database = {
           user_id: string;
           business_name: string;
           business_description: string | null;
+          business_sector: string | null;
+          business_sector_custom: string | null;
+          business_type: string | null;
+          business_type_custom: string | null;
           phone: string | null;
           email: string | null;
           address: string | null;
@@ -154,6 +158,10 @@ export type Database = {
           user_id: string;
           business_name: string;
           business_description?: string | null;
+          business_sector?: string | null;
+          business_sector_custom?: string | null;
+          business_type?: string | null;
+          business_type_custom?: string | null;
           phone?: string | null;
           email?: string | null;
           address?: string | null;
@@ -177,6 +185,10 @@ export type Database = {
           user_id?: string;
           business_name?: string;
           business_description?: string | null;
+          business_sector?: string | null;
+          business_sector_custom?: string | null;
+          business_type?: string | null;
+          business_type_custom?: string | null;
           phone?: string | null;
           email?: string | null;
           address?: string | null;

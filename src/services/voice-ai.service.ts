@@ -41,6 +41,7 @@ import {
 import { generateTextWithFallback } from "@/services/llm.service";
 import { loadConversationMemory } from "@/services/conversation-memory.service";
 import { listKnowledgeEntriesForBusiness } from "@/services/messaging.service";
+import { fetchBusinessProfileAiContext } from "@/services/business-profile-context.service";
 import { scheduleVoiceTurnOrchestration } from "@/services/voice-orchestrator.service";
 import { markVoiceCallCompleted } from "@/services/voice-inbox.service";
 import {
@@ -116,6 +117,29 @@ async function loadBusinessContext(
   const profile = profileResult.data;
   const baseSystemPrompt = profile?.system_prompt?.trim() || context.systemPrompt;
 
+  let knowledgeContext = knowledgeEntries.slice(0, knowledgeLimit).map((entry) => ({
+    id: entry.id,
+    citation: entry.citation,
+    category: entry.category?.trim() || "General",
+    title: entry.title,
+    content: entry.content.slice(0, knowledgeChars),
+  }));
+
+  if (knowledgeContext.length === 0) {
+    const profileFallback = await fetchBusinessProfileAiContext(businessId, admin);
+    if (profileFallback) {
+      knowledgeContext = [
+        {
+          id: "business-profile",
+          citation: "BP-1",
+          category: "Profile",
+          title: "Business profile",
+          content: profileFallback.slice(0, knowledgeChars),
+        },
+      ];
+    }
+  }
+
   return {
     businessName: context.businessName,
     agentName: profile?.name?.trim() || null,
@@ -126,13 +150,7 @@ async function loadBusinessContext(
       systemPrompt: baseSystemPrompt,
       communicationStyle: profile?.communication_style,
     }),
-    knowledgeContext: knowledgeEntries.slice(0, knowledgeLimit).map((entry) => ({
-      id: entry.id,
-      citation: entry.citation,
-      category: entry.category?.trim() || "General",
-      title: entry.title,
-      content: entry.content.slice(0, knowledgeChars),
-    })),
+    knowledgeContext,
   };
 }
 

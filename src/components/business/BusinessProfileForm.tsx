@@ -16,9 +16,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BUSINESS_MESSAGES } from "@/features/business/constants";
+import {
+  BUSINESS_SECTOR_OPTIONS,
+  BUSINESS_SECTOR_OTHER,
+  BUSINESS_TYPE_OPTIONS,
+  BUSINESS_TYPE_OTHER,
+} from "@/features/business/sectors";
 import { useBusinessProfileForm } from "@/hooks/use-business-profile-form";
 import { cn } from "@/lib/utils";
-import type { BusinessProfileData } from "@/types/business.types";
+import type { BusinessProfileData, BusinessProfileInput } from "@/types/business.types";
+
+const selectClassName =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 type BusinessProfileFormProps = {
   business?: BusinessProfileData | null;
@@ -27,17 +36,7 @@ type BusinessProfileFormProps = {
   onSuccess?: () => void;
 };
 
-type FormErrors = Partial<
-  Record<
-    | "businessName"
-    | "businessDescription"
-    | "phone"
-    | "email"
-    | "address"
-    | "website",
-    string
-  >
->;
+type FormErrors = Partial<Record<keyof BusinessProfileInput, string>>;
 
 export function BusinessProfileForm({
   business,
@@ -47,6 +46,9 @@ export function BusinessProfileForm({
 }: BusinessProfileFormProps) {
   const router = useRouter();
   const [errors, setErrors] = useState<FormErrors>({});
+  const [sector, setSector] = useState(business?.businessSector ?? "");
+  const [businessType, setBusinessType] = useState(business?.businessType ?? "");
+
   const { save, isLoading, isEditMode } = useBusinessProfileForm({
     businessId: business?.id,
     onCreateSuccess: () => {
@@ -67,6 +69,10 @@ export function BusinessProfileForm({
     const result = await save({
       businessName: String(formData.get("businessName") ?? ""),
       businessDescription: String(formData.get("businessDescription") ?? ""),
+      businessSector: sector || String(formData.get("businessSector") ?? ""),
+      businessSectorCustom: String(formData.get("businessSectorCustom") ?? ""),
+      businessType: businessType || String(formData.get("businessType") ?? ""),
+      businessTypeCustom: String(formData.get("businessTypeCustom") ?? ""),
       phone: String(formData.get("phone") ?? ""),
       email: String(formData.get("email") ?? ""),
       address: String(formData.get("address") ?? ""),
@@ -75,20 +81,12 @@ export function BusinessProfileForm({
 
     if (!result.success && result.error.code === "VALIDATION_ERROR") {
       const message = result.error.message.toLowerCase();
-
-      if (message.includes("business name")) {
-        setErrors({ businessName: result.error.message });
-      } else if (message.includes("email")) {
-        setErrors({ email: result.error.message });
-      } else if (message.includes("website") || message.includes("url")) {
-        setErrors({ website: result.error.message });
-      } else if (message.includes("description")) {
-        setErrors({ businessDescription: result.error.message });
-      } else if (message.includes("phone")) {
-        setErrors({ phone: result.error.message });
-      } else if (message.includes("address")) {
-        setErrors({ address: result.error.message });
-      }
+      if (message.includes("business name")) setErrors({ businessName: result.error.message });
+      else if (message.includes("email")) setErrors({ email: result.error.message });
+      else if (message.includes("website") || message.includes("url")) setErrors({ website: result.error.message });
+      else if (message.includes("description")) setErrors({ businessDescription: result.error.message });
+      else if (message.includes("sector")) setErrors({ businessSector: result.error.message });
+      else if (message.includes("type")) setErrors({ businessType: result.error.message });
     }
   }
 
@@ -96,9 +94,7 @@ export function BusinessProfileForm({
     <Card className={cn("shadow-none", className)}>
       <CardHeader>
         <CardTitle>
-          {isEditMode
-            ? BUSINESS_MESSAGES.editTitle
-            : BUSINESS_MESSAGES.createTitle}
+          {isEditMode ? BUSINESS_MESSAGES.editTitle : BUSINESS_MESSAGES.createTitle}
         </CardTitle>
         <CardDescription>
           {isEditMode
@@ -115,12 +111,11 @@ export function BusinessProfileForm({
           noValidate
         >
           <div className="space-y-2">
-            <Label htmlFor="business-name">Business Name</Label>
+            <Label htmlFor="business-name">Business name *</Label>
             <Input
               id="business-name"
               name="businessName"
               defaultValue={business?.businessName ?? defaultBusinessName ?? ""}
-              placeholder="Acme Coffee Shop"
               required
               aria-invalid={Boolean(errors.businessName)}
             />
@@ -129,23 +124,100 @@ export function BusinessProfileForm({
             ) : null}
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="business-sector">Industry / sector *</Label>
+              <select
+                id="business-sector"
+                name="businessSector"
+                className={selectClassName}
+                value={sector}
+                required
+                onChange={(event) => setSector(event.target.value)}
+              >
+                <option value="" disabled>
+                  Select sector
+                </option>
+                {BUSINESS_SECTOR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-type">Business type *</Label>
+              <select
+                id="business-type"
+                name="businessType"
+                className={selectClassName}
+                value={businessType}
+                required
+                onChange={(event) => setBusinessType(event.target.value)}
+              >
+                <option value="" disabled>
+                  Select type
+                </option>
+                {BUSINESS_TYPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {sector === BUSINESS_SECTOR_OTHER ? (
+            <div className="space-y-2">
+              <Label htmlFor="business-sector-custom">Custom sector *</Label>
+              <Input
+                id="business-sector-custom"
+                name="businessSectorCustom"
+                defaultValue={business?.businessSectorCustom ?? ""}
+              />
+            </div>
+          ) : null}
+
+          {businessType === BUSINESS_TYPE_OTHER ? (
+            <div className="space-y-2">
+              <Label htmlFor="business-type-custom">Custom business type *</Label>
+              <Input
+                id="business-type-custom"
+                name="businessTypeCustom"
+                defaultValue={business?.businessTypeCustom ?? ""}
+              />
+            </div>
+          ) : null}
+
           <div className="space-y-2">
-            <Label htmlFor="business-description">Description</Label>
+            <Label htmlFor="business-description">Description *</Label>
             <Textarea
               id="business-description"
               name="businessDescription"
               defaultValue={business?.businessDescription ?? ""}
-              placeholder="Tell customers what your business offers."
+              rows={4}
               aria-invalid={Boolean(errors.businessDescription)}
             />
             {errors.businessDescription ? (
-              <p className="text-xs text-destructive">
-                {errors.businessDescription}
-              </p>
+              <p className="text-xs text-destructive">{errors.businessDescription}</p>
             ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="business-email">Business email *</Label>
+              <Input
+                id="business-email"
+                name="email"
+                type="email"
+                defaultValue={business?.email ?? ""}
+                required
+                aria-invalid={Boolean(errors.email)}
+              />
+              {errors.email ? (
+                <p className="text-xs text-destructive">{errors.email}</p>
+              ) : null}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="business-phone">Phone</Label>
               <Input
@@ -153,27 +225,7 @@ export function BusinessProfileForm({
                 name="phone"
                 type="tel"
                 defaultValue={business?.phone ?? ""}
-                placeholder="+1 555 0100"
-                aria-invalid={Boolean(errors.phone)}
               />
-              {errors.phone ? (
-                <p className="text-xs text-destructive">{errors.phone}</p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="business-email">Business Email</Label>
-              <Input
-                id="business-email"
-                name="email"
-                type="email"
-                defaultValue={business?.email ?? ""}
-                placeholder="hello@business.com"
-                aria-invalid={Boolean(errors.email)}
-              />
-              {errors.email ? (
-                <p className="text-xs text-destructive">{errors.email}</p>
-              ) : null}
             </div>
           </div>
 
@@ -183,12 +235,7 @@ export function BusinessProfileForm({
               id="business-address"
               name="address"
               defaultValue={business?.address ?? ""}
-              placeholder="123 Main Street, City"
-              aria-invalid={Boolean(errors.address)}
             />
-            {errors.address ? (
-              <p className="text-xs text-destructive">{errors.address}</p>
-            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -198,7 +245,6 @@ export function BusinessProfileForm({
               name="website"
               type="url"
               defaultValue={business?.website ?? ""}
-              placeholder="https://yourbusiness.com"
               aria-invalid={Boolean(errors.website)}
             />
             {errors.website ? (

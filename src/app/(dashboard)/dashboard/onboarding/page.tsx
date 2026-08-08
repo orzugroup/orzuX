@@ -5,16 +5,14 @@ import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { DASHBOARD_ROUTES } from "@/constants/routes";
 import { getCurrentUser } from "@/services/auth.service";
 import { getPrimaryBusiness } from "@/services/business.service";
-import { getChannelAiSettings } from "@/services/channel-workspace.service";
 import {
   getEmptyOnboardingProgress,
   getOnboardingProgress,
 } from "@/services/onboarding.service";
-import { getWhatsAppConnectConfig } from "@/services/whatsapp.service";
 import { mapBusinessToProfile } from "@/utils/business";
 
 type OnboardingPageProps = {
-  searchParams: Promise<{ step?: string }>;
+  searchParams: Promise<{ view?: string; step?: string }>;
 };
 
 function OnboardingWizardFallback() {
@@ -29,7 +27,6 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
       ? user.user_metadata.business_name
       : undefined;
   const params = await searchParams;
-  const requestedStep = Number(params.step);
   const progress = business
     ? await getOnboardingProgress(business.id)
     : getEmptyOnboardingProgress();
@@ -38,27 +35,32 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     redirect(DASHBOARD_ROUTES.overview);
   }
 
-  const step = Number.isFinite(requestedStep)
-    ? Math.min(3, Math.max(1, requestedStep))
-    : progress.recommendedStep;
+  if (progress.hasBusinessProfile) {
+    const viewParam = params.view?.trim();
+    const showOptionalRoadmap =
+      viewParam === "continue" || viewParam === "optional";
+    const showEdit = viewParam === "edit-profile";
 
-  const [whatsappConnectConfig, aiSettings] = await Promise.all([
-    Promise.resolve(getWhatsAppConnectConfig()),
-    business && progress.connectedChannel
-      ? getChannelAiSettings(progress.connectedChannel)
-      : Promise.resolve(null),
-  ]);
+    if (!showOptionalRoadmap && !showEdit) {
+      redirect(DASHBOARD_ROUTES.overview);
+    }
+  }
+
+  const view: "profile" | "continue" | "edit-profile" =
+    !progress.hasBusinessProfile
+      ? "profile"
+      : params.view === "edit-profile"
+        ? "edit-profile"
+        : "continue";
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
       <Suspense fallback={<OnboardingWizardFallback />}>
         <OnboardingWizard
-          step={step}
+          view={view}
           progress={progress}
           business={business ? mapBusinessToProfile(business) : null}
           defaultBusinessName={defaultBusinessName}
-          whatsappConnectConfig={whatsappConnectConfig}
-          aiSettings={aiSettings}
         />
       </Suspense>
     </div>
