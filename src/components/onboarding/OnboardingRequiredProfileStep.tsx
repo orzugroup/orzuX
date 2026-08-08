@@ -4,6 +4,7 @@ import { Building2Icon, MailIcon, SparklesIcon } from "lucide-react";
 
 import { OnboardingBusinessProfileForm } from "@/components/onboarding/OnboardingBusinessProfileForm";
 import { ONBOARDING_MESSAGES } from "@/features/onboarding/constants";
+import { buildOptionalOnboardingSteps } from "@/features/onboarding/optional-steps";
 import type { BusinessProfileData } from "@/types/business.types";
 
 type OnboardingRequiredProfileStepProps = {
@@ -75,6 +76,33 @@ export function OnboardingRequiredProfileStep({
           requiredFieldsOnly
           onSuccess={onSuccess}
         />
+
+        <div className="mt-8 space-y-3 border-t pt-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            After this — optional
+          </p>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            {buildOptionalOnboardingSteps({
+              hasBusinessProfile: false,
+              hasBusiness: false,
+              hasConnectedChannel: false,
+              hasKnowledgeEntry: false,
+              hasAiEnabled: false,
+              connectedChannel: null,
+              percentComplete: 0,
+              isComplete: false,
+              recommendedStep: 2,
+            }).map((step) => (
+              <li key={step.id} className="flex gap-2">
+                <span className="text-primary">·</span>
+                <span>{step.label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            {ONBOARDING_MESSAGES.optionalRoadmapHint}
+          </p>
+        </div>
       </div>
     </div>
   );
