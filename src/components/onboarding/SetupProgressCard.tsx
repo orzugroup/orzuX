@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRightIcon,
   CheckCircle2Icon,
+  ChevronDownIcon,
   CircleIcon,
-  XIcon,
 } from "lucide-react";
 
 import { OnboardingProgressRing } from "@/components/onboarding/OnboardingProgressRing";
@@ -18,15 +18,42 @@ import { buildSetupSteps, getSetupProgressLabel } from "@/features/onboarding/se
 import { cn } from "@/lib/utils";
 import type { OnboardingProgress } from "@/services/onboarding.service";
 
+const STORAGE_KEY = "orzu.setupProgressCard.collapsed";
+
 type SetupProgressCardProps = {
   progress: OnboardingProgress;
 };
 
 export function SetupProgressCard({ progress }: SetupProgressCardProps) {
-  const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
 
-  if (!progress.hasBusinessProfile || progress.isComplete || dismissed) {
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored === "1") {
+        setExpanded(false);
+      }
+    } catch {
+      // ignore
+    }
+    setHydrated(true);
+  }, []);
+
+  function setCollapsed(nextExpanded: boolean) {
+    setExpanded(nextExpanded);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, nextExpanded ? "0" : "1");
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!progress.hasBusinessProfile || progress.isComplete) {
+    return null;
+  }
+
+  if (!hydrated) {
     return null;
   }
 
@@ -37,31 +64,44 @@ export function SetupProgressCard({ progress }: SetupProgressCardProps) {
   return (
     <div
       className={cn(
-        "fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[48] px-3 md:bottom-6 md:left-auto md:right-4 md:max-w-md md:px-0",
+        "fixed z-[48]",
+        expanded
+          ? "inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] px-3 md:bottom-6 md:left-auto md:right-4 md:max-w-md md:px-0"
+          : "bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-3 md:bottom-6 md:right-4",
       )}
       role="region"
       aria-label={title}
     >
-      <div className="overflow-hidden rounded-2xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/90">
-        <div className="flex items-start gap-3 border-b bg-muted/30 p-4">
-          <OnboardingProgressRing percent={progress.percentComplete} size={48} />
-          <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm font-semibold leading-snug">{title}</p>
-            <p className="text-xs text-muted-foreground">
-              {ONBOARDING_MESSAGES.optionalStepsRemaining(remaining)}
-            </p>
+      {!expanded ? (
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          className="rounded-full border bg-background/95 p-1.5 shadow-xl backdrop-blur transition hover:scale-[1.03] supports-[backdrop-filter]:bg-background/90"
+          aria-label={`${progress.percentComplete}% — ${ONBOARDING_MESSAGES.expandSetupCard}`}
+          title={ONBOARDING_MESSAGES.expandSetupCard}
+        >
+          <OnboardingProgressRing percent={progress.percentComplete} size={56} />
+        </button>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border bg-background/95 shadow-xl backdrop-blur supports-[backdrop-filter]:bg-background/90">
+          <div className="flex items-start gap-3 border-b bg-muted/30 p-4">
+            <OnboardingProgressRing percent={progress.percentComplete} size={48} />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm font-semibold leading-snug">{title}</p>
+              <p className="text-xs text-muted-foreground">
+                {ONBOARDING_MESSAGES.optionalStepsRemaining(remaining)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label={ONBOARDING_MESSAGES.collapseSetupCard}
+              onClick={() => setCollapsed(false)}
+            >
+              <ChevronDownIcon className="size-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Dismiss setup reminder"
-            onClick={() => setDismissed(true)}
-          >
-            <XIcon className="size-4" />
-          </button>
-        </div>
 
-        {expanded ? (
           <div className="space-y-3 p-4">
             <p className="text-xs leading-relaxed text-muted-foreground">
               {description}
@@ -107,26 +147,14 @@ export function SetupProgressCard({ progress }: SetupProgressCardProps) {
                 size="sm"
                 variant="ghost"
                 className="flex-1"
-                onClick={() => setExpanded(false)}
+                onClick={() => setCollapsed(false)}
               >
-                {ONBOARDING_MESSAGES.skipSetup}
+                {ONBOARDING_MESSAGES.collapseSetupCard}
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="p-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="w-full"
-              onClick={() => setExpanded(true)}
-            >
-              {ONBOARDING_MESSAGES.continue}
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

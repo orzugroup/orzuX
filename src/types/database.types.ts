@@ -139,6 +139,7 @@ export type Database = {
           email: string | null;
           address: string | null;
           website: string | null;
+          employee_count: string | null;
           logo_url: string | null;
           subscription_plan: string;
           subscription_status: string;
@@ -166,6 +167,7 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           website?: string | null;
+          employee_count?: string | null;
           logo_url?: string | null;
           subscription_plan?: string;
           subscription_status?: string;
@@ -193,6 +195,7 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           website?: string | null;
+          employee_count?: string | null;
           logo_url?: string | null;
           subscription_plan?: string;
           subscription_status?: string;

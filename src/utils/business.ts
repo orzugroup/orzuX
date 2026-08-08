@@ -2,9 +2,9 @@ import type { Business } from "@/types/database.types";
 import type { BusinessProfileData } from "@/types/business.types";
 import {
   BUSINESS_SECTOR_OTHER,
-  BUSINESS_TYPE_OTHER,
   resolveBusinessSectorLabel,
   resolveBusinessTypeLabel,
+  resolveEmployeeCountLabel,
 } from "@/features/business/sectors";
 
 export function mapBusinessToProfile(business: Business): BusinessProfileData {
@@ -20,6 +20,7 @@ export function mapBusinessToProfile(business: Business): BusinessProfileData {
     email: business.email,
     address: business.address,
     website: business.website,
+    employeeCount: business.employee_count,
     logoUrl: business.logo_url,
   };
 }
@@ -43,26 +44,18 @@ export function isBusinessProfileComplete(
   const description = business.business_description?.trim() ?? "";
   const email = business.email?.trim() ?? "";
   const sector = business.business_sector?.trim() ?? "";
-  const type = business.business_type?.trim() ?? "";
 
   if (name.length < 2 || description.length < 10 || !email.includes("@")) {
     return false;
   }
 
-  if (!sector || !type) {
+  if (!sector) {
     return false;
   }
 
   if (
     sector === BUSINESS_SECTOR_OTHER &&
     (business.business_sector_custom?.trim().length ?? 0) < 2
-  ) {
-    return false;
-  }
-
-  if (
-    type === BUSINESS_TYPE_OTHER &&
-    (business.business_type_custom?.trim().length ?? 0) < 2
   ) {
     return false;
   }
@@ -81,6 +74,7 @@ type BusinessProfileAiSource = {
   phone: string | null;
   address: string | null;
   website: string | null;
+  employee_count?: string | null;
 };
 
 export function formatBusinessProfileForAi(
@@ -94,6 +88,9 @@ export function formatBusinessProfileForAi(
     business.business_type,
     business.business_type_custom,
   );
+  const employeeLabel = resolveEmployeeCountLabel(
+    "employee_count" in business ? business.employee_count : null,
+  );
 
   return [
     business.business_name
@@ -104,6 +101,7 @@ export function formatBusinessProfileForAi(
     business.business_description
       ? `Description: ${business.business_description}`
       : null,
+    employeeLabel ? `Team size: ${employeeLabel}` : null,
     business.email ? `Contact email: ${business.email}` : null,
     business.phone ? `Phone: ${business.phone}` : null,
     business.address ? `Address: ${business.address}` : null,

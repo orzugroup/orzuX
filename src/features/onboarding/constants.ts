@@ -1,14 +1,16 @@
 export const ONBOARDING_MESSAGES = {
   pageTitle: "Create your business profile",
   pageDescription:
-    "This is the only required step. You can use the dashboard right after — connect channels and AI whenever you want.",
+    "Fill in the required fields to open the dashboard. Extra details below are optional and help OrzuX AI.",
   progressLabel: "Setup progress",
   mandatoryBadge: "Required",
   profileCompleteBadge: "Business profile saved",
   optionalBadge: "Optional",
   stepBusinessTitle: "Business profile",
   stepBusinessDescription:
-    "Name, industry, type, and contact email. OrzuX AI reads this when you have not added a knowledge base yet.",
+    "Name, industry sector, description, and business email. OrzuX AI reads this when you have not added a knowledge base yet.",
+  optionalFieldsHint: "Optional",
+  employeeCountLabel: "Team size",
   stepContinueTitle: "Setup is not finished yet",
   stepContinueDescription:
     "Your profile is saved and the dashboard is open. Finish optional steps when you are ready.",
@@ -29,6 +31,8 @@ export const ONBOARDING_MESSAGES = {
   back: "Back",
   continue: "Continue setup",
   skipSetup: "Skip for now",
+  collapseSetupCard: "Hide",
+  expandSetupCard: "Show setup progress",
   checklistTitle: "Setup not finished",
   checklistDescription:
     "Required profile is done. Optional steps help you get more from OrzuX.",
@@ -36,6 +40,7 @@ export const ONBOARDING_MESSAGES = {
     "You can work in the dashboard now. These steps are optional — complete them to unlock the full AI experience.",
   openStep: "Open",
   sectorLabel: "Industry / sector",
+  sectorPickerClosedHint: "Tap to choose your industry",
   sectorCustomLabel: "Describe your sector",
   sectorCustomPlaceholder: "e.g. Dental clinic, Auto repair",
   typeLabel: "Business type",
@@ -50,7 +55,7 @@ export const ONBOARDING_MESSAGES = {
     "Nothing here is required to use OrzuX. You can return from the dashboard anytime.",
   editProfileTitle: "Edit business profile",
   sectionIdentity: "Identity",
-  sectionIndustry: "Industry & type",
+  sectionIndustry: "Industry",
   sectionContact: "Contact",
   sectionOptionalDetails: "Optional details",
   submitCreate: "Save business profile",

@@ -19,7 +19,7 @@ export async function fetchBusinessProfileAiContext(
   const { data, error } = await client
     .from("businesses")
     .select(
-      "business_name, business_description, business_sector, business_sector_custom, business_type, business_type_custom, email, phone, address, website",
+      "business_name, business_description, business_sector, business_sector_custom, business_type, business_type_custom, email, phone, address, website, employee_count",
     )
     .eq("id", businessId)
     .maybeSingle();

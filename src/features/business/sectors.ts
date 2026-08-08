@@ -26,9 +26,19 @@ export const BUSINESS_TYPE_OPTIONS = [
   { value: BUSINESS_TYPE_OTHER, label: "Other — specify" },
 ] as const;
 
+export const BUSINESS_EMPLOYEE_COUNT_OPTIONS = [
+  { value: "1_5", label: "1–5" },
+  { value: "6_20", label: "6–20" },
+  { value: "21_50", label: "21–50" },
+  { value: "51_200", label: "51–200" },
+  { value: "200_plus", label: "200+" },
+] as const;
+
 export type BusinessSectorValue =
   (typeof BUSINESS_SECTOR_OPTIONS)[number]["value"];
 export type BusinessTypeValue = (typeof BUSINESS_TYPE_OPTIONS)[number]["value"];
+export type BusinessEmployeeCountValue =
+  (typeof BUSINESS_EMPLOYEE_COUNT_OPTIONS)[number]["value"];
 
 const SECTOR_LABELS = Object.fromEntries(
   BUSINESS_SECTOR_OPTIONS.map((item) => [item.value, item.label]),
@@ -36,6 +46,10 @@ const SECTOR_LABELS = Object.fromEntries(
 
 const TYPE_LABELS = Object.fromEntries(
   BUSINESS_TYPE_OPTIONS.map((item) => [item.value, item.label]),
+) as Record<string, string>;
+
+const EMPLOYEE_COUNT_LABELS = Object.fromEntries(
+  BUSINESS_EMPLOYEE_COUNT_OPTIONS.map((item) => [item.value, item.label]),
 ) as Record<string, string>;
 
 export function resolveBusinessSectorLabel(
@@ -60,4 +74,12 @@ export function resolveBusinessTypeLabel(
     return custom?.trim() || "Other";
   }
   return TYPE_LABELS[key] ?? key;
+}
+
+export function resolveEmployeeCountLabel(
+  value: string | null | undefined,
+): string | null {
+  const key = value?.trim();
+  if (!key) return null;
+  return EMPLOYEE_COUNT_LABELS[key] ?? key;
 }

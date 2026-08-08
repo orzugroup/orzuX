@@ -139,6 +139,7 @@ function mapPayloadToRow(payload: BusinessPayload) {
     email: emptyStringToNull(payload.email),
     address: emptyStringToNull(payload.address),
     website: emptyStringToNull(payload.website),
+    employee_count: emptyStringToNull(payload.employeeCount),
   };
 }
 

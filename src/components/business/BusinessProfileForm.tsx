@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BUSINESS_MESSAGES } from "@/features/business/constants";
 import {
+  BUSINESS_EMPLOYEE_COUNT_OPTIONS,
   BUSINESS_SECTOR_OPTIONS,
   BUSINESS_SECTOR_OTHER,
   BUSINESS_TYPE_OPTIONS,
@@ -48,6 +49,9 @@ export function BusinessProfileForm({
   const [errors, setErrors] = useState<FormErrors>({});
   const [sector, setSector] = useState(business?.businessSector ?? "");
   const [businessType, setBusinessType] = useState(business?.businessType ?? "");
+  const [employeeCount, setEmployeeCount] = useState(
+    business?.employeeCount ?? "",
+  );
 
   const { save, isLoading, isEditMode } = useBusinessProfileForm({
     businessId: business?.id,
@@ -77,6 +81,8 @@ export function BusinessProfileForm({
       email: String(formData.get("email") ?? ""),
       address: String(formData.get("address") ?? ""),
       website: String(formData.get("website") ?? ""),
+      employeeCount:
+        employeeCount || String(formData.get("employeeCount") ?? ""),
     });
 
     if (!result.success && result.error.code === "VALIDATION_ERROR") {
@@ -146,18 +152,15 @@ export function BusinessProfileForm({
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="business-type">Business type *</Label>
+              <Label htmlFor="business-type">Business type</Label>
               <select
                 id="business-type"
                 name="businessType"
                 className={selectClassName}
                 value={businessType}
-                required
                 onChange={(event) => setBusinessType(event.target.value)}
               >
-                <option value="" disabled>
-                  Select type
-                </option>
+                <option value="">Not set</option>
                 {BUSINESS_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -238,18 +241,37 @@ export function BusinessProfileForm({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="business-website">Website</Label>
-            <Input
-              id="business-website"
-              name="website"
-              type="url"
-              defaultValue={business?.website ?? ""}
-              aria-invalid={Boolean(errors.website)}
-            />
-            {errors.website ? (
-              <p className="text-xs text-destructive">{errors.website}</p>
-            ) : null}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="business-website">Website</Label>
+              <Input
+                id="business-website"
+                name="website"
+                type="url"
+                defaultValue={business?.website ?? ""}
+                aria-invalid={Boolean(errors.website)}
+              />
+              {errors.website ? (
+                <p className="text-xs text-destructive">{errors.website}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="business-employee-count">Team size</Label>
+              <select
+                id="business-employee-count"
+                name="employeeCount"
+                className={selectClassName}
+                value={employeeCount}
+                onChange={(event) => setEmployeeCount(event.target.value)}
+              >
+                <option value="">Not set</option>
+                {BUSINESS_EMPLOYEE_COUNT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <Button type="submit" disabled={isLoading}>

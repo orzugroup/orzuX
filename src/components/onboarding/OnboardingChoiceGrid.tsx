@@ -53,7 +53,7 @@ export function OnboardingChoiceGrid({
           >
             <input
               type="radio"
-              name={name}
+              name={name || undefined}
               value={option.value}
               checked={selected}
               className="sr-only"

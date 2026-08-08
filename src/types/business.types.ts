@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  BUSINESS_EMPLOYEE_COUNT_OPTIONS,
   BUSINESS_SECTOR_OPTIONS,
   BUSINESS_SECTOR_OTHER,
   BUSINESS_TYPE_OPTIONS,
@@ -15,6 +16,9 @@ const typeValues = BUSINESS_TYPE_OPTIONS.map((item) => item.value) as [
   string,
   ...string[],
 ];
+const employeeCountValues = BUSINESS_EMPLOYEE_COUNT_OPTIONS.map(
+  (item) => item.value,
+) as [string, ...string[]];
 
 const optionalText = (maxLength: number) =>
   z
@@ -26,17 +30,17 @@ const optionalText = (maxLength: number) =>
 
 const optionalWebsite = z
   .string()
-    .trim()
-    .max(2048)
-    .optional()
-    .transform((value) => value ?? "")
-    .refine((value) => {
-      if (value === "") {
-        return true;
-      }
+  .trim()
+  .max(2048)
+  .optional()
+  .transform((value) => value ?? "")
+  .refine((value) => {
+    if (value === "") {
+      return true;
+    }
 
-      return z.string().url().safeParse(value).success;
-    }, "Enter a valid website URL.");
+    return z.string().url().safeParse(value).success;
+  }, "Enter a valid website URL.");
 
 const sectorField = z
   .string()
@@ -49,9 +53,21 @@ const sectorField = z
 const typeField = z
   .string()
   .trim()
+  .optional()
+  .transform((value) => value ?? "")
   .refine(
-    (value) => typeValues.includes(value),
-    "Select your business type.",
+    (value) => value === "" || typeValues.includes(value),
+    "Select a valid business type.",
+  );
+
+const employeeCountField = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => value ?? "")
+  .refine(
+    (value) => value === "" || employeeCountValues.includes(value),
+    "Select a valid team size.",
   );
 
 export const businessProfileSchema = z
@@ -79,6 +95,7 @@ export const businessProfileSchema = z
       .email("Enter a valid business email address."),
     address: optionalText(200),
     website: optionalWebsite,
+    employeeCount: employeeCountField,
   })
   .superRefine((data, ctx) => {
     if (
@@ -125,6 +142,7 @@ export type BusinessPayload = {
   email: string;
   address: string;
   website: string;
+  employeeCount: string;
 };
 
 export type BusinessErrorCode =
@@ -159,6 +177,7 @@ export type BusinessProfileData = {
   email: string | null;
   address: string | null;
   website: string | null;
+  employeeCount: string | null;
   logoUrl: string | null;
 };
 
